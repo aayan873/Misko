@@ -448,3 +448,129 @@ export function getCalibrationInsight(learnerId: string): CalibrationInsight | n
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Class-wide (teacher-facing) aggregation
+//
+// Everything above this line answers "how is one learner doing." This section
+// aggregates across every learner this instance has ever seen data for — see
+// RESEARCH/COMPETITORS.md #9: teacher-facing diagnostic tools are a comparatively
+// underserved angle compared to student-facing chat tutors, despite the
+// documented pain point (teachers spend 7-15+ hrs/week grading, and delayed
+// feedback measurably loses pedagogical value).
+//
+// Honest scoping: there is no real auth/roster system here (see prompt.md §19 —
+// this app deliberately collects no accounts/PII). "The class" is simply every
+// learner id this server instance has recorded an attempt for. That's an honest
+// hackathon-scale demonstration of the idea, not a claim that this is
+// classroom-deployment-ready multi-tenant software.
+// ---------------------------------------------------------------------------
+
+function getAllActiveLearnerIds(): string[] {
+  const ids = new Set<string>();
+  for (const a of store.raw.attempts) ids.add(a.learner_id);
+  return Array.from(ids);
+}
+
+export interface ClassMisconceptionSummary {
+  misconceptionId: string;
+  conceptId: ConceptId;
+  totalOccurrences: number;
+  distinctLearners: number;
+}
+
+/** Which mistakes are actually common across the group, ranked by how many
+ * different learners hit them (not just raw count, so one learner retrying the
+ * same problem repeatedly can't dominate the ranking). */
+export function getClassMisconceptionSummary(): ClassMisconceptionSummary[] {
+  const grouped = new Map<string, { conceptId: ConceptId; occurrences: number; learners: Set<string> }>();
+  for (const e of store.raw.misconceptionEvents) {
+    const existing = grouped.get(e.misconception_id);
+    if (existing) {
+      existing.occurrences += 1;
+      existing.learners.add(e.learner_id);
+    } else {
+      grouped.set(e.misconception_id, {
+        conceptId: e.concept_id,
+        occurrences: 1,
+        learners: new Set([e.learner_id]),
+      });
+    }
+  }
+  return Array.from(grouped.entries())
+    .map(([misconceptionId, v]) => ({
+      misconceptionId,
+      conceptId: v.conceptId,
+      totalOccurrences: v.occurrences,
+      distinctLearners: v.learners.size,
+    }))
+    .sort((a, b) => b.distinctLearners - a.distinctLearners || b.totalOccurrences - a.totalOccurrences);
+}
+
+export type AtRiskReason = "overconfident" | "underconfident" | "stuck";
+
+export interface AtRiskLearner {
+  learnerId: string;
+  displayName: string | null;
+  reason: AtRiskReason;
+  detail: string;
+}
+
+const STUCK_MIN_ATTEMPTS = 6;
+const STUCK_MAX_MASTERY = 0.4;
+
+/** Flags learners worth a teacher's attention right now, with a concrete reason
+ * — never just a raw score, since "who needs help" is only useful if it also
+ * says why (see prompt.md §9, "not a black box," applied to the teacher view). */
+export function getAtRiskLearners(): AtRiskLearner[] {
+  const results: AtRiskLearner[] = [];
+  for (const learnerId of getAllActiveLearnerIds()) {
+    const displayName = store.raw.learners.find((l) => l.id === learnerId)?.display_name ?? null;
+
+    const insight = getCalibrationInsight(learnerId);
+    if (insight) {
+      results.push({
+        learnerId,
+        displayName,
+        reason: insight.type,
+        detail:
+          insight.type === "overconfident"
+            ? `Confident but only ${Math.round(insight.accuracy * 100)}% correct on those answers (${insight.count} recent)`
+            : `Unsure but ${Math.round(insight.accuracy * 100)}% correct anyway (${insight.count} recent) — undersells themselves`,
+      });
+      continue; // one flag per learner, calibration takes priority over "stuck" below
+    }
+
+    const frontier = frontierConcept(learnerId);
+    if (frontier) {
+      const row = getConceptMastery(learnerId, frontier);
+      if (row.attempts >= STUCK_MIN_ATTEMPTS && row.p_mastery < STUCK_MAX_MASTERY) {
+        results.push({
+          learnerId,
+          displayName,
+          reason: "stuck",
+          detail: `${row.attempts} attempts on ${getConcept(frontier).name}, still only ${Math.round(row.p_mastery * 100)}% estimated mastery`,
+        });
+      }
+    }
+  }
+  return results;
+}
+
+export interface ClassRosterEntry {
+  learnerId: string;
+  displayName: string | null;
+  totalAttempts: number;
+  conceptsMastered: number;
+}
+
+export function getClassRoster(): ClassRosterEntry[] {
+  return getAllActiveLearnerIds()
+    .map((learnerId) => ({
+      learnerId,
+      displayName: store.raw.learners.find((l) => l.id === learnerId)?.display_name ?? null,
+      totalAttempts: store.raw.attempts.filter((a) => a.learner_id === learnerId).length,
+      conceptsMastered: getAllMastery(learnerId).filter((m) => m.mastered === 1).length,
+    }))
+    .sort((a, b) => b.totalAttempts - a.totalAttempts);
+}
+

@@ -145,9 +145,14 @@ export const store = {
   save(): void {
     persist(load());
   },
-  /** Test-only: clears the in-memory cache so the next access reloads from disk (or starts fresh). */
+  /** Test-only: resets to a genuinely empty store. Sets a fresh object directly
+   * rather than clearing the cache pointer — clearing it alone would make the
+   * next access reload from the same on-disk temp file every test in a run
+   * shares, silently accumulating state across tests instead of isolating them.
+   * Harmless for tests that always filter by a unique per-test learner id, but
+   * a real bug for anything that queries across all learners. */
   _resetForTests(): void {
-    globalForStore.__miskoStore = undefined;
+    globalForStore.__miskoStore = emptyStore();
   },
   /** Wipes all stored history for one learner id — used to re-seed the /compare demo to a clean state on each visit. */
   resetLearner(learnerId: string): void {
