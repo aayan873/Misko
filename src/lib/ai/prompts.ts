@@ -90,6 +90,22 @@ Your job: decide whether the student's OWN EXPLANATION indicates they actually u
 Respond with ONLY a JSON object, no markdown fences, no other text: {"suspectMisconceptionId": "<id from the list, or null>", "confidence": "<low|medium|high>"}
 Be conservative: only return a non-null id if the explanation clearly and specifically describes a flawed method, not merely because it's brief or informally worded. A short but correct explanation is NOT suspicious. If in doubt, return null — a missed check is far better than falsely doubting a student who actually understands the material.`;
 
+/**
+ * Transcribing handwritten math work — a genuinely different capability from the
+ * text-only prompts above (multimodal image input). Scoped deliberately narrow per
+ * RESEARCH/COMPETITORS.md #5 ("Seeing the Big Picture", arXiv 2510.05538): models
+ * are strong (~95%) at reading handwritten arithmetic/algebra steps, but weak at
+ * interpreting freeform diagrams — so this prompt asks only for a transcription of
+ * written steps, explicitly instructed to say so rather than guess when illegible,
+ * not to interpret drawings or guess at what wasn't actually written.
+ */
+export const TRANSCRIBE_SYSTEM_INSTRUCTIONS = `You transcribe a student's handwritten math work from a photo into plain text, for an Algebra I tutoring system. Transcribe ONLY the written mathematical steps/expressions, in order, as plain text (e.g. "3(x+2) = 3x+2" not LaTeX). Do not solve the problem, do not correct any errors you see, do not describe the image — just transcribe what is written, mistakes included. If the handwriting is too unclear to transcribe reliably, or the image doesn't show legible written math work, say so rather than guessing.
+Respond with ONLY a JSON object, no markdown fences, no other text: {"transcript": "<the transcribed steps, or null if illegible>", "legible": <true|false>}`;
+
+export function buildTranscribePrompt(problemPromptText: string): string {
+  return `The student was asked to solve: "${problemPromptText}". The attached photo shows their handwritten work. Transcribe it per the rules above.`;
+}
+
 export function buildReasoningCheckPrompt(input: ReasoningCheckPromptInput): string {
   const { problem, learnerAnswer, shownWork, candidates } = input;
   const candidateList = candidates

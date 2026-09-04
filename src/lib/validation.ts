@@ -33,3 +33,13 @@ export const spotMistakeSubmitSchema = z.object({
   roundId: z.string().min(1).max(200),
   selectedStepIndex: z.number().int().min(0).max(20),
 });
+
+// Client resizes images before upload (see resizeImage.ts) — this cap is a
+// backstop against abuse, not the primary size control. ~4MB of base64 covers a
+// generously-sized resized photo with real margin under typical serverless
+// request-body limits.
+export const transcribeWorkSchema = z.object({
+  imageBase64: z.string().min(1).max(4_000_000),
+  mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  problemPromptText: z.string().min(1).max(300),
+});

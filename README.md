@@ -45,7 +45,10 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
   the dashboard shows where that diverges from your actual accuracy.
 - **Classifies freeform reasoning.** If your wrong answer doesn't match a known
   mistake pattern, you can write out how you solved it and Gemini classifies the
-  misconception from your explanation instead of just the final number.
+  misconception from your explanation instead of just the final number. You can also
+  speak it (browser speech-to-text) or photograph handwritten work — Gemini reads the
+  photo and transcribes it into the same text field. Photo reading needs a live API
+  key (no fallback is possible for reading an image); everything else works either way.
 - **`/compare` proves the personalization is real.** It seeds two learners with
   different histories, has both submit the same wrong answer to the same problem
   through the real backend, and shows their diagnoses come out different.
@@ -74,13 +77,13 @@ answer is right.
 ## Tech
 
 - Next.js 14 (App Router), TypeScript, Tailwind CSS — one app, API routes as the backend
-- Google Gemini API (`gemini-1.5-flash` by default)
+- Google Gemini API (`gemini-flash-latest` by default)
 - A plain JSON file as the datastore (`better-sqlite3`'s native binding kept segfaulting
   on this machine's Node 18, so this avoided that entirely)
 - Bayesian Knowledge Tracing for mastery estimation (`src/lib/bkt.ts`) — fixed,
   literature-typical parameters, no training data involved
 - Zod for input validation on every API route
-- Vitest, 73 tests covering the deterministic core, mastery gate, AI fallback behavior,
+- Vitest, 89 tests covering the deterministic core, mastery gate, AI fallback behavior,
   and input validation
 
 ## Setup

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useLearnerId } from "@/lib/useLearnerId";
+import { useSpeechToText } from "@/lib/useSpeechToText";
+import { resizeImageToBase64 } from "@/lib/resizeImage";
 import ReasoningTrace from "@/components/ReasoningTrace";
 import { StatusIcon } from "@/components/GradeMarks";
 import MasteryDelta from "@/components/MasteryDelta";
@@ -68,6 +70,12 @@ export default function PracticePage() {
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcribeError, setTranscribeError] = useState<string | null>(null);
+
+  const speech = useSpeechToText((transcript) => {
+    setShownWork((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
+  });
 
   const loadNextProblem = useCallback(async () => {
     if (!learnerId) return;
@@ -78,6 +86,7 @@ export default function PracticePage() {
     setShownWork("");
     setShowWorkField(false);
     setHintLevel(1);
+    setTranscribeError(null);
     try {
       const res = await fetch(`/api/next-problem?learnerId=${learnerId}`);
       if (!res.ok) throw new Error("Failed to load problem");
@@ -125,6 +134,31 @@ export default function PracticePage() {
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Something went wrong");
       setPhase("error");
+    }
+  }
+
+  async function handlePhotoSelected(file: File) {
+    if (!problem) return;
+    setTranscribeError(null);
+    setTranscribing(true);
+    try {
+      const { base64, mimeType } = await resizeImageToBase64(file);
+      const res = await fetch("/api/transcribe-work", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType, problemPromptText: problem.promptText }),
+      });
+      if (!res.ok) throw new Error("Failed to read photo");
+      const data: { transcript: string | null; message: string | null } = await res.json();
+      if (data.transcript) {
+        setShownWork((prev) => (prev.trim() ? `${prev.trim()} ${data.transcript}` : data.transcript!));
+      } else {
+        setTranscribeError(data.message ?? "Couldn't read that photo.");
+      }
+    } catch {
+      setTranscribeError("Couldn't read that photo — try again or type your work instead.");
+    } finally {
+      setTranscribing(false);
     }
   }
 
@@ -263,6 +297,41 @@ export default function PracticePage() {
                   maxLength={600}
                   className="w-full border border-border bg-surface px-4 py-3 text-[14px] text-ink outline-none focus:border-primary"
                 />
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {speech.supported && (
+                    <button
+                      type="button"
+                      onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                      className={`flex items-center gap-1.5 border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                        speech.listening
+                          ? "border-danger bg-danger-wash text-danger"
+                          : "border-border text-ink-soft hover:border-primary hover:text-primary"
+                      }`}
+                    >
+                      <span aria-hidden="true">{speech.listening ? "●" : "🎤"}</span>
+                      {speech.listening ? "Listening…" : "Speak it instead"}
+                    </button>
+                  )}
+
+                  <label className="flex cursor-pointer items-center gap-1.5 border border-border px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:border-primary hover:text-primary">
+                    <span aria-hidden="true">📷</span>
+                    {transcribing ? "Reading…" : "Photo of your work"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      disabled={transcribing}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) handlePhotoSelected(file);
+                      }}
+                    />
+                  </label>
+                </div>
+                {transcribeError && <p className="mt-1.5 text-[12px] text-danger">{transcribeError}</p>}
               </div>
             )}
 

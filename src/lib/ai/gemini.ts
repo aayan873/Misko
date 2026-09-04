@@ -6,13 +6,21 @@ import {
   buildCorrectFeedbackPrompt,
   buildDiagnosisPrompt,
   buildReasoningCheckPrompt,
+  buildTranscribePrompt,
   CLASSIFICATION_SYSTEM_INSTRUCTIONS,
   REASONING_CHECK_SYSTEM_INSTRUCTIONS,
   SYSTEM_INSTRUCTIONS,
+  TRANSCRIBE_SYSTEM_INSTRUCTIONS,
 } from "./prompts";
 import { fallbackCorrectFeedback, fallbackDiagnosis } from "./fallback";
 
-const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+// "-latest" alias, not a pinned version — gemini-1.5-flash (the original default
+// here) was fully retired and started 404ing sometime after this was first written,
+// silently degrading every AI call to its fallback template with no visible error.
+// Pinning to a specific dated model avoids surprise behavior changes but requires
+// remembering to update it before Google retires that version too; the alias trades
+// that for not going dark again the same way.
+const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-flash-latest";
 
 function getClient(): GoogleGenerativeAI | null {
   const key = process.env.GEMINI_API_KEY;
@@ -202,6 +210,58 @@ export async function classifyCorrectReasoning(params: {
   } catch (err) {
     console.error("[gemini] reasoning check failed:", err);
     return { suspectMisconceptionId: null, confidence: null, attempted: true };
+  }
+}
+
+export interface TranscribeResult {
+  /** null when unavailable (no key) or the model couldn't read the handwriting reliably. */
+  transcript: string | null;
+  attempted: boolean;
+  legible: boolean;
+}
+
+/**
+ * Reads a photo of handwritten math work into plain text — a different capability
+ * from every other function here (multimodal image input, not text prompting).
+ * No deterministic fallback is possible for reading an image, so like
+ * classifyFreeformMisconception this is simply unavailable without a live key.
+ * See buildTranscribePrompt for the honest-scoping rationale.
+ */
+export async function transcribeHandwriting(params: {
+  imageBase64: string;
+  mimeType: string;
+  problemPromptText: string;
+}): Promise<TranscribeResult> {
+  const client = getClient();
+  if (!client) return { transcript: null, attempted: false, legible: false };
+
+  try {
+    const model = client.getGenerativeModel({
+      model: MODEL_NAME,
+      systemInstruction: TRANSCRIBE_SYSTEM_INSTRUCTIONS,
+      generationConfig: { responseMimeType: "application/json" },
+    });
+    const prompt = buildTranscribePrompt(params.problemPromptText);
+    const result = await withTimeout(
+      model.generateContent([
+        prompt,
+        { inlineData: { data: params.imageBase64, mimeType: params.mimeType } },
+      ]),
+      TIMEOUT_MS
+    );
+    const raw = result.response.text().trim();
+    const parsed = JSON.parse(raw) as { transcript?: unknown; legible?: unknown };
+
+    const legible = parsed.legible === true;
+    const transcript =
+      legible && typeof parsed.transcript === "string" && parsed.transcript.trim().length > 0
+        ? parsed.transcript.trim()
+        : null;
+
+    return { transcript, attempted: true, legible };
+  } catch (err) {
+    console.error("[gemini] handwriting transcription failed:", err);
+    return { transcript: null, attempted: true, legible: false };
   }
 }
 
