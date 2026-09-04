@@ -18,12 +18,23 @@ const {
   getConfirmationStats,
   lastMisconceptionOnConcept,
   getMisconceptionHistory,
-  MASTERY_STREAK,
   MASTERY_MIN_ATTEMPTS,
 } = await import("../src/lib/learnerModel");
+const { initialMastery, updateMastery, BKT_MASTERY_THRESHOLD } = await import("../src/lib/bkt");
 
 function learnerId(name: string) {
   return name; // ids don't need to be real UUIDs for internal store tests
+}
+
+/** How many consecutive correct answers it takes BKT to cross the mastery threshold — computed from the actual math, not hardcoded, so this stays correct if the BKT params ever change. */
+function attemptsToCrossThreshold(): number {
+  let p = initialMastery();
+  let n = 0;
+  while (p < BKT_MASTERY_THRESHOLD) {
+    p = updateMastery(p, true);
+    n++;
+  }
+  return n;
 }
 
 beforeEach(() => {
@@ -31,9 +42,10 @@ beforeEach(() => {
 });
 
 describe("mastery gate", () => {
-  it("does not mark a concept mastered before the streak/attempt thresholds are met", () => {
+  it("does not mark a concept mastered before enough correct answers to cross the BKT threshold", () => {
     const id = learnerId("l1");
-    for (let i = 0; i < MASTERY_STREAK - 1; i++) {
+    const short = attemptsToCrossThreshold() - 1;
+    for (let i = 0; i < short; i++) {
       recordAttempt({
         learnerId: id,
         conceptId: "order-of-operations",
@@ -48,9 +60,10 @@ describe("mastery gate", () => {
     expect(getConceptMastery(id, "order-of-operations").mastered).toBe(0);
   });
 
-  it("marks a concept mastered after MASTERY_STREAK consecutive correct answers (min attempts met)", () => {
+  it("marks a concept mastered once BKT's P(knows) crosses the threshold (min attempts met)", () => {
     const id = learnerId("l2");
-    for (let i = 0; i < Math.max(MASTERY_STREAK, MASTERY_MIN_ATTEMPTS); i++) {
+    const needed = Math.max(attemptsToCrossThreshold(), MASTERY_MIN_ATTEMPTS);
+    for (let i = 0; i < needed; i++) {
       recordAttempt({
         learnerId: id,
         conceptId: "order-of-operations",
@@ -62,7 +75,42 @@ describe("mastery gate", () => {
         learnerAnswer: "x",
       });
     }
-    expect(getConceptMastery(id, "order-of-operations").mastered).toBe(1);
+    const row = getConceptMastery(id, "order-of-operations");
+    expect(row.mastered).toBe(1);
+    expect(row.p_mastery).toBeGreaterThanOrEqual(BKT_MASTERY_THRESHOLD);
+  });
+
+  it("a single wrong answer after mastery lowers p_mastery but does not revoke mastered (sticky)", () => {
+    const id = learnerId("l-sticky");
+    const needed = Math.max(attemptsToCrossThreshold(), MASTERY_MIN_ATTEMPTS);
+    for (let i = 0; i < needed; i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "order-of-operations",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "x",
+        learnerAnswer: "x",
+      });
+    }
+    const pBefore = getConceptMastery(id, "order-of-operations").p_mastery;
+
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+    });
+
+    const row = getConceptMastery(id, "order-of-operations");
+    expect(row.p_mastery).toBeLessThan(pBefore);
+    expect(row.mastered).toBe(1);
   });
 
   it("resets the streak on a wrong answer", () => {
@@ -93,7 +141,7 @@ describe("mastery gate", () => {
   it("does not advance the frontier concept until prerequisites are mastered", () => {
     const id = learnerId("l4");
     expect(frontierConcept(id)).toBe("order-of-operations");
-    for (let i = 0; i < Math.max(MASTERY_STREAK, MASTERY_MIN_ATTEMPTS); i++) {
+    for (let i = 0; i < Math.max(attemptsToCrossThreshold(), MASTERY_MIN_ATTEMPTS); i++) {
       recordAttempt({
         learnerId: id,
         conceptId: "order-of-operations",

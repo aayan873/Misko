@@ -36,6 +36,8 @@ export interface ConceptMasteryRow {
   attempts: number;
   correct: number;
   streak: number;
+  /** Bayesian Knowledge Tracing estimate of P(learner knows this concept), 0-1. See src/lib/bkt.ts. */
+  p_mastery: number;
   mastered: number;
   updated_at: number;
 }

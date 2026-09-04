@@ -6,8 +6,10 @@ import {
   generateProblemForMisconception,
   ProblemInstance,
 } from "./domain/problemEngine";
+import { initialMastery, updateMastery, BKT_MASTERY_THRESHOLD } from "./bkt";
 
-export const MASTERY_STREAK = 3;
+/** Extra floor alongside the BKT threshold, so mastery can't be granted off a
+ *  freak early streak before there's a reasonable sample size. */
 export const MASTERY_MIN_ATTEMPTS = 3;
 /** Chance of serving a review problem from a weaker, previously-seen concept instead of the frontier concept (interleaving, see RESEARCH/LEARNING_SCIENCE.md #8). */
 const INTERLEAVE_PROBABILITY = 0.25;
@@ -18,6 +20,8 @@ export interface ConceptMasteryRow {
   attempts: number;
   correct: number;
   streak: number;
+  /** Bayesian Knowledge Tracing estimate of P(learner knows this concept), 0-1. See bkt.ts. */
+  p_mastery: number;
   mastered: number;
   updated_at: number;
 }
@@ -26,13 +30,16 @@ export function getConceptMastery(learnerId: string, conceptId: ConceptId): Conc
   const row = store.raw.conceptMastery.find(
     (r) => r.learner_id === learnerId && r.concept_id === conceptId
   );
-  if (row) return row;
+  // p_mastery may be missing on a row written before BKT was added — default it
+  // rather than let a stale on-disk file produce NaN through the update math.
+  if (row) return row.p_mastery === undefined ? { ...row, p_mastery: initialMastery() } : row;
   return {
     learner_id: learnerId,
     concept_id: conceptId,
     attempts: 0,
     correct: 0,
     streak: 0,
+    p_mastery: initialMastery(),
     mastered: 0,
     updated_at: Date.now(),
   };
@@ -218,7 +225,14 @@ export function recordAttempt(input: RecordAttemptInput): void {
   const attempts = current.attempts + 1;
   const correct = current.correct + (wasCorrect ? 1 : 0);
   const streak = wasCorrect ? current.streak + 1 : 0;
-  const mastered = streak >= MASTERY_STREAK && attempts >= MASTERY_MIN_ATTEMPTS ? 1 : 0;
+  const pMastery = updateMastery(current.p_mastery, wasCorrect);
+  // Sticky: once mastered, a single slip on a later review problem shouldn't revoke
+  // it outright (BKT still lowers p_mastery on a slip — this just stops that alone
+  // from re-locking a concept the learner already demonstrated).
+  const mastered =
+    current.mastered === 1 || (pMastery >= BKT_MASTERY_THRESHOLD && attempts >= MASTERY_MIN_ATTEMPTS)
+      ? 1
+      : 0;
 
   const existingIdx = s.conceptMastery.findIndex(
     (r) => r.learner_id === input.learnerId && r.concept_id === input.conceptId
@@ -229,6 +243,7 @@ export function recordAttempt(input: RecordAttemptInput): void {
     attempts,
     correct,
     streak,
+    p_mastery: pMastery,
     mastered,
     updated_at: now,
   };

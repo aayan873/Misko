@@ -36,8 +36,10 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
   matched against a taxonomy of 15 misconceptions across 5 Algebra I concepts.
 - **Never gives away the answer.** Wrong answers get a Socratic hint (three escalating
   levels) aimed at the specific misconception, not the solution.
-- **Gates progress on actual mastery**, not just completing problems — you need a
-  streak of correct answers before moving to the next concept.
+- **Gates progress on actual mastery**, not just completing problems. Each concept's
+  mastery is a live probability estimate (Bayesian Knowledge Tracing, updated after
+  every answer) rather than a plain streak counter, so one slip during review lowers it
+  instead of wiping out your progress.
 - **Tracks confidence calibration.** You predict your confidence before answering, and
   the dashboard shows where that diverges from your actual accuracy.
 - **Classifies freeform reasoning.** If your wrong answer doesn't match a known
@@ -70,8 +72,10 @@ answer is right.
 - Google Gemini API (`gemini-1.5-flash` by default)
 - A plain JSON file as the datastore (`better-sqlite3`'s native binding kept segfaulting
   on this machine's Node 18, so this avoided that entirely)
+- Bayesian Knowledge Tracing for mastery estimation (`src/lib/bkt.ts`) — fixed,
+  literature-typical parameters, no training data involved
 - Zod for input validation on every API route
-- Vitest, 65 tests covering the deterministic core, mastery gate, AI fallback behavior,
+- Vitest, 73 tests covering the deterministic core, mastery gate, AI fallback behavior,
   and input validation
 
 ## Setup
@@ -129,6 +133,7 @@ npm test
 ```
 src/lib/domain/            concepts, misconceptions, problem engine
 src/lib/analyzer.ts        answer classification
+src/lib/bkt.ts             Bayesian Knowledge Tracing (mastery estimation)
 src/lib/learnerModel.ts    mastery gate, calibration, misconception history
 src/lib/ai/                Gemini integration + fallback templates
 src/lib/store.ts           JSON-file persistence

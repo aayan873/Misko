@@ -14,6 +14,8 @@ export interface ConceptPathEntry {
   streak: number;
   mastered: boolean;
   accuracy: number | null;
+  /** Bayesian Knowledge Tracing estimate of P(learner knows this concept), 0-1. */
+  pMastery: number;
   locked: boolean;
   confirmation: ConfirmationStats;
 }
@@ -50,7 +52,7 @@ export default function ConceptPath({ concepts, frontierConceptId }: ConceptPath
             content = "✓";
           } else if (!c.locked && started) {
             stampClass = "border-primary text-primary bg-surface";
-            content = `${Math.round((c.accuracy ?? 0) * 100)}%`;
+            content = `${Math.round(c.pMastery * 100)}%`;
           } else if (!c.locked) {
             stampClass = "border-border text-ink-faint bg-surface";
             content = "—";

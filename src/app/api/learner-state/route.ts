@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       streak: row.streak,
       mastered: row.mastered === 1,
       accuracy: row.attempts > 0 ? row.correct / row.attempts : null,
+      pMastery: row.p_mastery,
       // Locked = prerequisites not yet mastered — drives the concept-path visualization
       // (see ConceptPath.tsx), which was previously invisible: the dashboard showed 5
       // flat stamps with no sense of the real prerequisite chain the mastery gate uses.

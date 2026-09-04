@@ -114,7 +114,10 @@ export default function DashboardPage() {
         <h2 className="section-title">Concept mastery</h2>
         <p className="mt-2.5 mb-8 max-w-[56ch] text-[15px] leading-relaxed text-ink-soft">
           The real prerequisite chain the mastery gate uses — you can&apos;t reach a later
-          concept until the ones before it are mastered.
+          concept until the ones before it are mastered. The percentage on each concept
+          is a live estimate of how likely you are to actually know it (Bayesian
+          Knowledge Tracing), not just your raw hit rate — one wrong answer lowers it,
+          it doesn&apos;t reset it to zero.
         </p>
         <div className="card p-7">
           <ConceptPath concepts={state.mastery} frontierConceptId={state.frontierConcept} />
