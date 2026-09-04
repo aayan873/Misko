@@ -24,3 +24,12 @@ export const learnerCreateSchema = z.object({
   learnerId: learnerIdSchema,
   displayName: z.string().trim().min(1).max(60).optional(),
 });
+
+export const spotMistakeQuerySchema = z.object({
+  learnerId: learnerIdSchema,
+});
+
+export const spotMistakeSubmitSchema = z.object({
+  roundId: z.string().min(1).max(200),
+  selectedStepIndex: z.number().int().min(0).max(20),
+});

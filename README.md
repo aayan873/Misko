@@ -49,6 +49,10 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
 - **`/compare` proves the personalization is real.** It seeds two learners with
   different histories, has both submit the same wrong answer to the same problem
   through the real backend, and shows their diagnoses come out different.
+- **`/spot-the-mistake` flips the exercise around.** Instead of solving a problem,
+  you're shown a step-by-step solution that gets it wrong on purpose (using the same
+  misconception taxonomy) and have to find which step is the error — learning to
+  recognize a specific mistake pattern, not just avoid making it yourself.
 
 ## Who it's for
 
@@ -132,7 +136,7 @@ npm test
 ## Structure
 
 ```
-src/lib/domain/            concepts, misconceptions, problem engine
+src/lib/domain/            concepts, misconceptions, problem engine, flawed worked examples
 src/lib/analyzer.ts        answer classification
 src/lib/bkt.ts             Bayesian Knowledge Tracing (mastery estimation)
 src/lib/learnerModel.ts    mastery gate, calibration, misconception history
