@@ -85,4 +85,30 @@ describe("POST /api/submit-answer — rate limiting integration", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  // The global limit is the actually load-bearing one (see the route's own
+  // comment: a per-learner limit alone is trivially bypassed by generating
+  // new learner ids) — never verified before now, only the per-learner one.
+  // Spread 300 requests across 6 distinct learners (50 each, comfortably
+  // under the 60/learner cap) so none of them individually trips the
+  // per-learner limit first — only reaching the global 300 total should.
+  it("enforces a global cap across learners, not just per-learner", async () => {
+    const learners = Array.from({ length: 6 }, () => randomUUID());
+    const statuses: number[] = [];
+    for (let round = 0; round < 50; round++) {
+      for (const learnerId of learners) {
+        statuses.push((await submitRequest(learnerId)).status);
+      }
+    }
+    expect(statuses).toHaveLength(300);
+    expect(statuses.every((s) => s !== 429)).toBe(true);
+
+    // A brand-new, never-before-seen learner — zero requests of their own —
+    // still gets blocked, because the global budget is what's exhausted.
+    const freshLearner = randomUUID();
+    const res = await submitRequest(freshLearner);
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error).toMatch(/busy/i);
+  });
 });
