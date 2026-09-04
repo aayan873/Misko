@@ -29,7 +29,16 @@ describe("evaluation: BKT mastery gate, measured not assumed", () => {
     expect(p).toBeGreaterThanOrEqual(BKT_MASTERY_THRESHOLD);
   });
 
-  it("mastery is not sticky: a single wrong answer immediately after crossing the threshold drops back below it", () => {
+  it("the underlying p_mastery estimate is not sticky: a single wrong answer drops it back below the threshold", () => {
+    // IMPORTANT SCOPE NOTE: this is about the raw probability estimate
+    // (updateMastery's return value) crossing back below BKT_MASTERY_THRESHOLD,
+    // NOT about learnerModel.ts's persisted ConceptMasteryRow.mastered flag —
+    // that flag is DELIBERATELY sticky once granted (see the "Sticky:" comment
+    // directly above the `mastered` computation in recordAttempt) so a single
+    // slip on a later spaced-review problem doesn't revoke an already-earned
+    // "Mastered" badge. See EVALUATION.md's Resilience section for both layers
+    // stated precisely — conflating them here was a real, since-corrected
+    // inaccuracy in an earlier version of this file/EVALUATION.md.
     let p = initialMastery();
     let attempts = 0;
     while (attempts < MASTERY_MIN_ATTEMPTS || p < BKT_MASTERY_THRESHOLD) {
@@ -37,11 +46,6 @@ describe("evaluation: BKT mastery gate, measured not assumed", () => {
       attempts++;
     }
     const pAfterOneSlip = updateMastery(p, false);
-    // This is the actual claim in the README/ARCHITECTURE.md: one slip
-    // lowers the estimate below the mastery gate, unlike a streak counter
-    // which would only need to reset to zero after enough correct answers
-    // to look "safe" again. Verified here with the real threshold, not just
-    // "it went down" (bkt.test.ts's existing check).
     expect(pAfterOneSlip).toBeLessThan(BKT_MASTERY_THRESHOLD);
   });
 

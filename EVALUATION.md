@@ -49,15 +49,35 @@ realistic session is more like 10-30 problems total across five concepts),
 but it's a genuine long-horizon limit of the model, not a claim that mastery
 can never be gamed with infinite patience.
 
-## Resilience: mastery isn't sticky (deterministic)
+## Resilience: two layers, and they behave differently on purpose
 
-The whole point of using BKT instead of a streak counter is that one slip
-should cost something real, not just require a few make-up correct answers to
-paper over. Measured directly: reach mastery through the minimum
-3 correct answers (`p = 0.9828`), then answer once wrong. Result:
-`p = 0.8893` — back below the 0.95 threshold, so `mastered` flips to `false`
-again. One wrong answer, one dropped mastery flag. Locked in as a permanent
-test (`tests/evaluation.test.ts`).
+There are two things in play here, and an earlier draft of this document
+conflated them into a single, incorrect claim — corrected now, with both
+stated precisely:
+
+- **The raw `p_mastery` estimate** (`updateMastery` in `src/lib/bkt.ts`) is
+  genuinely not sticky. Measured directly: reach mastery through the minimum
+  3 correct answers (`p = 0.9828`), then answer once wrong. Result:
+  `p = 0.8893` — back below the 0.95 threshold. One wrong answer, one real
+  drop in the underlying estimate. Locked in as a permanent test
+  (`tests/evaluation.test.ts`).
+- **The persisted `mastered` flag** on `ConceptMasteryRow`
+  (`src/lib/learnerModel.ts`'s `recordAttempt`) is **deliberately sticky**
+  once granted: `current.mastered === 1 || (...)` means a concept that's ever
+  been marked mastered stays marked mastered, even if a later slip (e.g. on a
+  spaced-review problem) drops `p_mastery` back below 0.95. This is an
+  intentional product decision, not an oversight — the reasoning documented
+  right above that line in the code is that revoking an already-earned
+  "Mastered" badge off a single spaced-review slip would feel punishing in a
+  way that doesn't serve the learner, whereas the underlying number moving is
+  still real, visible feedback (the dashboard shows both).
+
+So: "one slip costs something real" is true of the number a learner actually
+sees move (`p_mastery`, and the mastery-delta shown right after answering —
+see MasteryDelta.tsx), not of the discrete badge, which is sticky by design.
+README and ARCHITECTURE.md's wording was already careful to talk about "the
+estimate," not the badge — this file's earlier draft wasn't, and that's what
+got fixed here.
 
 ## The Correct Answer Trap: catch mechanism (deterministic, rule-based path)
 
