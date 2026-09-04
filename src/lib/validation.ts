@@ -40,6 +40,7 @@ export const spotMistakeSubmitSchema = z.object({
 // generously-sized resized photo with real margin under typical serverless
 // request-body limits.
 export const transcribeWorkSchema = z.object({
+  learnerId: learnerIdSchema,
   imageBase64: z.string().min(1).max(4_000_000),
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
   problemPromptText: z.string().min(1).max(300),

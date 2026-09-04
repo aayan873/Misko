@@ -139,7 +139,7 @@ export default function PracticePage() {
   }
 
   async function handlePhotoSelected(file: File) {
-    if (!problem) return;
+    if (!problem || !learnerId) return;
     setTranscribeError(null);
     setTranscribing(true);
     try {
@@ -147,9 +147,15 @@ export default function PracticePage() {
       const res = await fetch("/api/transcribe-work", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType, problemPromptText: problem.promptText }),
+        body: JSON.stringify({
+          learnerId,
+          imageBase64: base64,
+          mimeType,
+          problemPromptText: problem.promptText,
+        }),
       });
-      if (!res.ok) throw new Error("Failed to read photo");
+      // Even 429/400 responses carry a real, specific message in the body
+      // (see /api/transcribe-work) — read it instead of throwing it away.
       const data: { transcript: string | null; message: string | null } = await res.json();
       if (data.transcript) {
         setShownWork((prev) => (prev.trim() ? `${prev.trim()} ${data.transcript}` : data.transcript!));
