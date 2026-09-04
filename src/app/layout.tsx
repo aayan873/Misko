@@ -28,7 +28,14 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Misko — the tutor that checks if you earned it",
+  title: {
+    default: "Misko — the tutor that checks if you earned it",
+    // Each route sets its own title via a route-level layout.tsx (metadata
+    // exports need a server component, and every page here is "use client")
+    // — otherwise every tab/screen-reader page title was identical, making
+    // them indistinguishable from each other.
+    template: "%s — Misko",
+  },
   description:
     "An Algebra I tutor that diagnoses the misconception behind a wrong answer, and quietly double-checks correct answers that might be lucky guesses instead of real understanding.",
 };

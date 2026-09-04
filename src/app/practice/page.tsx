@@ -181,7 +181,7 @@ export default function PracticePage() {
 
   if (phase === "error") {
     return (
-      <div className="mx-auto max-w-[700px] px-4 sm:px-8 py-24 text-center">
+      <div className="mx-auto max-w-[700px] px-4 sm:px-8 py-24 text-center" role="alert">
         <p className="text-danger">{errorMsg}</p>
         <button className="btn-secondary mt-6" onClick={loadNextProblem}>
           Try again
@@ -233,6 +233,7 @@ export default function PracticePage() {
               {[1, 2, 3, 4, 5].map((n) => (
                 <button
                   key={n}
+                  aria-label={`Confidence level ${n} out of 5`}
                   onClick={() => {
                     setConfidence(n);
                     setPhase("answering");
@@ -260,11 +261,12 @@ export default function PracticePage() {
             )}
             <input
               autoFocus
+              aria-label="Your answer"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !showWorkField && submitAnswer()}
               placeholder={problem.answerType === "expression" ? "e.g. 7x" : "e.g. 12"}
-              className="w-full border border-border bg-surface px-4 py-3.5 font-mono text-lg text-ink outline-none focus:border-primary"
+              className="w-full border border-border bg-surface px-4 py-3.5 font-mono text-lg text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary"
             />
 
             {!showWorkField ? (
@@ -286,23 +288,25 @@ export default function PracticePage() {
               </button>
             ) : (
               <div className="mt-4">
-                <p className="mb-2 text-[13px] font-medium text-ink-soft">
+                <label htmlFor="shown-work" className="mb-2 block text-[13px] font-medium text-ink-soft">
                   How did you solve it? <span className="text-ink-faint">(optional)</span>
-                </p>
+                </label>
                 <textarea
+                  id="shown-work"
                   autoFocus
                   value={shownWork}
                   onChange={(e) => setShownWork(e.target.value)}
                   placeholder="e.g. I added the exponents together since both terms had x^2..."
                   rows={2}
                   maxLength={600}
-                  className="w-full border border-border bg-surface px-4 py-3 text-[14px] text-ink outline-none focus:border-primary"
+                  className="w-full border border-border bg-surface px-4 py-3 text-[14px] text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary"
                 />
 
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {speech.supported && (
                     <button
                       type="button"
+                      aria-pressed={speech.listening}
                       onClick={() => (speech.listening ? speech.stop() : speech.start())}
                       className={`flex items-center gap-1.5 border px-3 py-1.5 text-[12px] font-medium transition-colors ${
                         speech.listening
@@ -353,7 +357,12 @@ export default function PracticePage() {
         )}
 
         {phase === "result" && result && (
-          <div className="mt-8 animate-[fadeIn_0.35s_ease-out] border-t border-border-soft pt-7">
+          <div
+            className="mt-8 animate-[fadeIn_0.35s_ease-out] border-t border-border-soft pt-7"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {result.masteredNow && !result.masteredBefore && (
               <MasteredStamp conceptName={result.conceptName} />
             )}

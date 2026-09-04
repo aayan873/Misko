@@ -57,7 +57,7 @@ export default function MasteryDelta({ conceptName, before, after, justMastered 
   return (
     <div className="flex items-center gap-3.5">
       <div className="relative flex-none" style={{ width: SIZE, height: SIZE }}>
-        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
           <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} fill="none" stroke="var(--border-soft)" strokeWidth={STROKE} />
           <circle
             cx={SIZE / 2}

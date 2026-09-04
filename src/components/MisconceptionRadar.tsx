@@ -31,8 +31,20 @@ export default function MisconceptionRadar({ axes }: MisconceptionRadarProps) {
   const dataPoints = axes.map((a, i) => pointOnAxis(i, count, (a.value / maxValue) * MAX_RADIUS));
   const dataPath = dataPoints.map((p) => p.join(",")).join(" ");
 
+  const summary = axes
+    .filter((a) => a.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .map((a) => `${a.label}: ${a.value}`)
+    .join(", ");
+
   return (
-    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+    <svg
+      width={SIZE}
+      height={SIZE}
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      role="img"
+      aria-label={summary ? `Mistake distribution by concept: ${summary}` : "No mistakes recorded yet"}
+    >
       {Array.from({ length: RINGS }, (_, ringIndex) => {
         const r = (MAX_RADIUS * (ringIndex + 1)) / RINGS;
         const ringPoints = axes.map((_, i) => pointOnAxis(i, count, r).join(",")).join(" ");

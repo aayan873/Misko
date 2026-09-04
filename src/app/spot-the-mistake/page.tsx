@@ -89,7 +89,7 @@ export default function SpotTheMistakePage() {
 
   if (phase === "error") {
     return (
-      <div className="mx-auto max-w-[700px] px-4 sm:px-8 py-24 text-center">
+      <div className="mx-auto max-w-[700px] px-4 sm:px-8 py-24 text-center" role="alert">
         <p className="text-danger">{errorMsg}</p>
         <button className="btn-secondary mt-6" onClick={loadRound}>
           Try again
@@ -146,7 +146,12 @@ export default function SpotTheMistakePage() {
         </div>
 
         {phase === "result" && result && (
-          <div className="mt-6 animate-[fadeIn_0.35s_ease-out] border-t border-border-soft pt-6">
+          <div
+            className="mt-6 animate-[fadeIn_0.35s_ease-out] border-t border-border-soft pt-6"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             <div className={`callout ${result.correct ? "success" : "danger"} flex gap-3`}>
               <StatusIcon kind={result.correct ? "success" : "danger"} />
               <div>
