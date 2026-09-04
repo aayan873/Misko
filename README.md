@@ -15,6 +15,10 @@ persistent process to work, so nothing you do actually gets saved there — mast
 tracking, misconception history, and the confirmation mechanic below won't do anything
 on this deployment. Run it locally (see Setup) for the real thing.
 
+This README describes what's on this branch, which is ahead of what's actually deployed
+and ahead of `main` — several sections below (spaced review, the teacher view, export/
+import, Spot the Mistake) aren't live at the link above yet.
+
 ## The problem
 
 You can get a math problem right by luck, a half-remembered trick, or actually
@@ -55,7 +59,25 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
 - **`/spot-the-mistake` flips the exercise around.** Instead of solving a problem,
   you're shown a step-by-step solution that gets it wrong on purpose (using the same
   misconception taxonomy) and have to find which step is the error — learning to
-  recognize a specific mistake pattern, not just avoid making it yourself.
+  recognize a specific mistake pattern, not just avoid making it yourself. How many
+  you've caught is tracked and shown on the dashboard, separate from concept mastery.
+- **Mastered concepts come back for review**, spaced by how many problems you've
+  answered since, not calendar days — get one right, the gap before the next check
+  grows; miss one, it comes back soon. Same idea as spaced-repetition apps, just paced
+  by activity instead of a clock, so it actually shows up in one sitting instead of
+  needing you to come back tomorrow.
+- **Acts on your confidence calibration, not just charts it.** If you're consistently
+  confident but wrong, or consistently unsure but right, the dashboard says so directly
+  instead of leaving you to notice the pattern in a bar chart yourself.
+- **`/teacher` aggregates across every learner this instance has seen** — common
+  mistakes ranked by how many different people hit them, who needs a look and why
+  (overconfident, underselling themselves, or stuck), a full roster. No accounts or
+  real rosters behind it (see Limitations) — an honest demonstration of the idea, not a
+  classroom-ready product.
+- **Export and restore your progress.** There are no accounts here on purpose, which
+  means clearing your browser or switching devices normally loses everything with no
+  way back. `/dashboard` lets you download a backup and restore it later, or in a
+  different browser.
 
 ## Who it's for
 
@@ -69,10 +91,20 @@ Problem generation and answer-checking are plain deterministic code — every pr
 a known-correct answer and a known set of wrong answers mapped to specific
 misconceptions (`src/lib/domain/problemEngine.ts`, `src/lib/analyzer.ts`). Gemini is
 only used for the parts that need actual language understanding: turning a diagnosed
-misconception into a natural hint, classifying freeform written reasoning, and raising a
-soft "this correct answer might be shaky" hypothesis that's always double-checked with a
-real graded problem before anything is shown to the learner. It never invents whether an
-answer is right.
+misconception into a natural hint, classifying freeform written reasoning, reading
+handwritten work from a photo, and raising a soft "this correct answer might be shaky"
+hypothesis that's always double-checked with a real graded problem before anything is
+shown to the learner. It never invents whether an answer is right.
+
+Two more things in here are "ML" in a different sense than prompting an LLM: mastery
+estimation is Bayesian Knowledge Tracing (`src/lib/bkt.ts`, fixed literature-typical
+parameters, no training data), and when no Gemini key is configured at all, freeform
+wrong-answer classification falls back to a local TF-IDF + cosine-similarity match
+(`src/lib/domain/textSimilarity.ts`) instead of just giving up — a real, if weaker,
+technique with no API call involved. It's tuned deliberately conservative: an early
+threshold looked fine on easy cases but produced confidently wrong matches between
+misconceptions that share vocabulary, so it now only fires on close-to-verbatim
+phrasing. That tradeoff — and the test that caught it — is documented in the file.
 
 ## Tech
 
@@ -82,9 +114,12 @@ answer is right.
   on this machine's Node 18, so this avoided that entirely)
 - Bayesian Knowledge Tracing for mastery estimation (`src/lib/bkt.ts`) — fixed,
   literature-typical parameters, no training data involved
+- A local TF-IDF + cosine-similarity classifier (`src/lib/domain/textSimilarity.ts`) as
+  a no-API-key fallback for freeform misconception classification
 - Zod for input validation on every API route
-- Vitest, 89 tests covering the deterministic core, mastery gate, AI fallback behavior,
-  and input validation
+- Vitest, 115 tests covering the deterministic core, mastery gate, spaced review,
+  calibration, class-wide aggregation, export/import, AI fallback behavior, and input
+  validation
 
 ## Setup
 
@@ -114,7 +149,11 @@ npm test
    weaker one, another shot at something you got wrong before, or (if you wrote out your
    reasoning and it looked off) a quiet follow-up problem to double-check it.
 5. `/dashboard` shows your actual state: confirmed-vs-caught stat, mastery per concept,
-   misconception history, confidence calibration.
+   misconception history, confidence calibration (with a direct callout if it's
+   consistently off), a shape of where your mistakes cluster by concept, and a backup/
+   restore option.
+6. `/spot-the-mistake` for the reverse exercise, `/teacher` for the aggregated
+   class-wide view across everyone who's used this instance.
 
 ## Limitations
 
@@ -135,6 +174,15 @@ npm test
   above) — would need a real database there.
 - 5 concepts, 15 misconceptions. Narrow scope on purpose, not full subject coverage.
 - No real student usage data behind any of this yet.
+- `/teacher` shows every learner this instance has recorded data for, not a real
+  roster — there's no auth or account system at all, so "the class" is just "everyone
+  who's used this server." Honest for a hackathon demo, not classroom-deployment-ready.
+- Restoring a backup on `/dashboard` replaces everything currently in this browser for
+  the current learner id — it's a clean replace, not a merge, with a confirmation
+  prompt since it can't be undone.
+- Spot the Mistake tracks its own separate stat, deliberately not folded into concept
+  mastery — diagnosing someone else's mistake and solving a problem yourself are
+  different skills, and mixing the signals didn't seem justified.
 
 ## Structure
 
@@ -142,7 +190,9 @@ npm test
 src/lib/domain/            concepts, misconceptions, problem engine, flawed worked examples
 src/lib/analyzer.ts        answer classification
 src/lib/bkt.ts             Bayesian Knowledge Tracing (mastery estimation)
-src/lib/learnerModel.ts    mastery gate, calibration, misconception history
+src/lib/learnerModel.ts    mastery gate, spaced review, calibration, class-wide
+                            aggregation, export/import, misconception history
+src/lib/domain/textSimilarity.ts  local TF-IDF fallback classifier
 src/lib/ai/                Gemini integration + fallback templates
 src/lib/store.ts           JSON-file persistence
 src/app/                   Next.js pages + API routes
