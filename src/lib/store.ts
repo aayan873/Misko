@@ -46,7 +46,7 @@ export interface ConceptMasteryRow {
 }
 
 /** How a misconception was identified: a deterministic distractor-value match, or Gemini classifying the learner's own written reasoning. */
-export type DiagnosisSource = "rule" | "ai" | null;
+export type DiagnosisSource = "rule" | "ai" | "similarity" | null;
 
 export interface MisconceptionEventRow {
   id: number;

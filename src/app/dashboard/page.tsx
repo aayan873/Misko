@@ -22,7 +22,7 @@ interface MisconceptionEntry {
   occurrences: number;
   resolved: boolean;
   lastSeen: number;
-  diagnosisSource: "rule" | "ai" | null;
+  diagnosisSource: "rule" | "ai" | "similarity" | null;
 }
 
 interface CalibrationPoint {
@@ -185,6 +185,9 @@ export default function DashboardPage() {
                     seen {h.occurrences}× · {h.conceptId}
                     {h.diagnosisSource === "ai" && (
                       <span className="text-primary"> · diagnosed from your reasoning</span>
+                    )}
+                    {h.diagnosisSource === "similarity" && (
+                      <span className="text-primary"> · matched from your wording (no AI key)</span>
                     )}
                   </p>
                 </div>

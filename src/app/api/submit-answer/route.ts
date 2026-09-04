@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeAnswer } from "@/lib/analyzer";
 import { getCachedProblem } from "@/lib/problemCache";
-import { getMisconception, misconceptionsForConcept } from "@/lib/domain/misconceptions";
+import { getMisconception, misconceptionsForConcept, MISCONCEPTIONS } from "@/lib/domain/misconceptions";
+import { classifyByTextSimilarity } from "@/lib/domain/textSimilarity";
 import {
   recordAttempt,
   getMisconceptionHistory,
@@ -16,9 +17,15 @@ import {
   classifyFreeformMisconception,
   generateCorrectFeedback,
   generateDiagnosis,
+  isGeminiConfigured,
 } from "@/lib/ai/gemini";
 import { submitAnswerSchema } from "@/lib/validation";
 import { ConfirmationStatus, DiagnosisSource } from "@/lib/store";
+
+// Computed once at module load, not per-request — the IDF weighting in
+// classifyByTextSimilarity needs the full taxonomy corpus regardless of which
+// concept's candidates are being checked (see textSimilarity.ts).
+const ALL_MISCONCEPTION_DESCRIPTIONS = MISCONCEPTIONS.map((m) => m.description);
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -156,7 +163,11 @@ export async function POST(req: NextRequest) {
     // written reasoning against this concept's misconception taxonomy with Gemini.
     // This is real classification work, not just phrasing — see ARCHITECTURE.md.
     if (shownWork && shownWork.trim().length > 0) {
-      steps.push("Analyzing your written reasoning with Gemini");
+      steps.push(
+        isGeminiConfigured()
+          ? "Analyzing your written reasoning with Gemini"
+          : "No AI key configured — checking your wording against known patterns directly"
+      );
       const candidates = misconceptionsForConcept(problem.conceptId);
       const classification = await classifyFreeformMisconception({
         problem,
@@ -173,7 +184,18 @@ export async function POST(req: NextRequest) {
       } else if (classification.attempted) {
         steps.push("Gemini reviewed it but found no clear match to a known pattern");
       } else {
-        steps.push("Showing a general hint instead");
+        // Step 3 (only reachable with no Gemini key): a local, dependency-free
+        // text-similarity match — genuinely weaker than an LLM reading the
+        // explanation, deliberately tuned conservative (see textSimilarity.ts),
+        // but a real technique rather than skipping straight to a generic hint.
+        const similarity = classifyByTextSimilarity(shownWork, candidates, ALL_MISCONCEPTION_DESCRIPTIONS);
+        if (similarity.misconceptionId) {
+          misconceptionId = similarity.misconceptionId;
+          diagnosisSource = "similarity";
+          steps.push(`Matched: "${getMisconception(misconceptionId)?.name}"`);
+        } else {
+          steps.push("No confident match — showing a general hint instead");
+        }
       }
     } else {
       steps.push("No written reasoning provided — add how you solved it for a more specific diagnosis");

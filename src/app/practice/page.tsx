@@ -32,7 +32,7 @@ interface SubmitResult {
   feedbackText: string;
   source: "gemini" | "fallback";
   misconceptionName?: string | null;
-  diagnosisSource?: "rule" | "ai" | null;
+  diagnosisSource?: "rule" | "ai" | "similarity" | null;
   revealAnswer?: boolean;
   correctAnswer?: string;
   steps: string[];
@@ -402,6 +402,12 @@ export default function PracticePage() {
                   {result.diagnosisSource === "ai" && (
                     <p className="mt-2 text-[13px] font-medium text-primary">
                       Diagnosed from your own reasoning.
+                    </p>
+                  )}
+                  {result.diagnosisSource === "similarity" && (
+                    <p className="mt-2 text-[13px] font-medium text-primary">
+                      Matched from your wording — no AI key configured, so this used local
+                      text-similarity instead.
                     </p>
                   )}
                   {result.revealAnswer && (
