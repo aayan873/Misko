@@ -20,6 +20,7 @@ const {
   lastMisconceptionOnConcept,
   getMisconceptionHistory,
   getCalibrationInsight,
+  getTimingInsight,
   getClassMisconceptionSummary,
   getAtRiskLearners,
   getClassRoster,
@@ -577,6 +578,69 @@ describe("getCalibrationInsight", () => {
   });
 });
 
+describe("getTimingInsight", () => {
+  function record(id: string, correct: boolean, timeSpentMs: number | null) {
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: correct ? "correct" : "unrecognized",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+      timeSpentMs,
+    });
+  }
+
+  it("returns null with no history", () => {
+    expect(getTimingInsight(learnerId("time1"))).toBeNull();
+  });
+
+  it("returns null below the minimum sample size on either side, even with a huge gap", () => {
+    const id = learnerId("time2");
+    for (let i = 0; i < 4; i++) record(id, false, 1000); // only 4 wrong, needs 5
+    for (let i = 0; i < 5; i++) record(id, true, 20000);
+    expect(getTimingInsight(id)).toBeNull();
+  });
+
+  it("flags rushing: wrong answers land at or under half the median time of correct ones", () => {
+    const id = learnerId("time3");
+    for (let i = 0; i < 5; i++) record(id, false, 2000); // 2s each, wrong
+    for (let i = 0; i < 5; i++) record(id, true, 10000); // 10s each, correct
+    const insight = getTimingInsight(id);
+    expect(insight).not.toBeNull();
+    expect(insight?.type).toBe("rushing");
+    expect(insight?.medianWrongMs).toBe(2000);
+    expect(insight?.medianCorrectMs).toBe(10000);
+    expect(insight?.wrongCount).toBe(5);
+    expect(insight?.correctCount).toBe(5);
+  });
+
+  it("returns null when wrong answers are only slightly faster, not enough to flag", () => {
+    const id = learnerId("time4");
+    for (let i = 0; i < 5; i++) record(id, false, 8000); // 8s
+    for (let i = 0; i < 5; i++) record(id, true, 10000); // 10s — ratio 0.8, above the 0.5 cutoff
+    expect(getTimingInsight(id)).toBeNull();
+  });
+
+  it("ignores attempts with no reported timing data entirely", () => {
+    const id = learnerId("time5");
+    for (let i = 0; i < 5; i++) record(id, false, null);
+    for (let i = 0; i < 5; i++) record(id, true, null);
+    expect(getTimingInsight(id)).toBeNull();
+  });
+
+  it("mixes timed and untimed attempts correctly — only the timed ones count toward the sample", () => {
+    const id = learnerId("time6");
+    for (let i = 0; i < 5; i++) record(id, false, 2000);
+    for (let i = 0; i < 3; i++) record(id, false, null); // shouldn't count
+    for (let i = 0; i < 5; i++) record(id, true, 10000);
+    const insight = getTimingInsight(id);
+    expect(insight?.wrongCount).toBe(5);
+  });
+});
+
 describe("class-wide (teacher-facing) aggregation", () => {
   it("getClassMisconceptionSummary ranks by distinct learners before raw count", () => {
     const a = learnerId("class-a");
@@ -859,6 +923,53 @@ describe("export / import", () => {
 
     // The original learner is untouched by exporting/importing from it.
     expect(getConceptMastery(source, "order-of-operations").attempts).toBe(2);
+  });
+
+  it("round-trips time_spent_ms, and defaults it to null for a pre-existing backup that never had the field", () => {
+    const source = learnerId("exp-timing-src");
+    recordAttempt({
+      learnerId: source,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+      timeSpentMs: 4321,
+    });
+    const exported = exportLearnerData(source);
+    expect(exported.attempts[0].time_spent_ms).toBe(4321);
+
+    const target = learnerId("exp-timing-target");
+    importLearnerData(target, {
+      conceptMastery: exported.conceptMastery,
+      misconceptionEvents: exported.misconceptionEvents,
+      attempts: exported.attempts,
+    });
+    expect(exportLearnerData(target).attempts[0].time_spent_ms).toBe(4321);
+
+    // An old-style backup, authored before this field existed at all.
+    const oldStyleTarget = learnerId("exp-timing-old-backup");
+    importLearnerData(oldStyleTarget, {
+      conceptMastery: [],
+      misconceptionEvents: [],
+      attempts: [
+        {
+          concept_id: "order-of-operations",
+          misconception_id: null,
+          outcome: "correct",
+          confidence_before: 3,
+          hint_level_used: 1,
+          created_at: Date.now(),
+          diagnosis_source: null,
+          confirmation_status: "none",
+          problem_prompt: "old backup, no time_spent_ms field at all",
+          // time_spent_ms omitted on purpose
+        },
+      ],
+    });
+    expect(exportLearnerData(oldStyleTarget).attempts[0].time_spent_ms).toBeNull();
   });
 
   it("import is a clean replace, not a merge — old data for the target id is gone afterward", () => {

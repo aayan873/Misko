@@ -264,6 +264,9 @@ export interface RecordAttemptInput {
   diagnosisSource?: DiagnosisSource;
   /** See ConfirmationStatus in store.ts — only meaningful when outcome is "correct". */
   confirmationStatus?: ConfirmationStatus;
+  /** Client-measured ms between the problem being shown and this submission —
+   *  see useProblemTimer.ts. Undefined/omitted when the client didn't report one. */
+  timeSpentMs?: number | null;
 }
 
 export function recordAttempt(input: RecordAttemptInput): void {
@@ -287,6 +290,7 @@ export function recordAttempt(input: RecordAttemptInput): void {
     diagnosis_source: diagnosisSource,
     confirmation_status: input.confirmationStatus ?? "none",
     problem_prompt: input.problemPrompt,
+    time_spent_ms: input.timeSpentMs ?? null,
   });
 
   const wasCorrect = input.outcome === "correct";
@@ -543,6 +547,59 @@ export function getCalibrationInsight(learnerId: string): CalibrationInsight | n
   return null;
 }
 
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+export interface TimingInsight {
+  type: "rushing";
+  /** Median ms spent on wrong answers vs. correct ones, for this learner specifically —
+   *  a personal baseline, not a fixed cutoff, since "fast" varies by person and problem. */
+  medianWrongMs: number;
+  medianCorrectMs: number;
+  wrongCount: number;
+  correctCount: number;
+}
+
+const TIMING_MIN_SAMPLE = 5;
+// Wrong answers have to be meaningfully faster than correct ones, not just
+// slightly — this is deliberately conservative for the same reason
+// getCalibrationInsight's thresholds are: a false "you're rushing" callout
+// for someone who just happens to solve some problems quickly is worse than
+// occasionally missing a real instance.
+const RUSHING_RATIO = 0.5;
+
+/**
+ * "Time spent" is one of the signals prompt.md's personalization section
+ * calls out that nothing tracked before this feature — see useProblemTimer.ts
+ * for how it's measured, and RESEARCH/LEARNING_SCIENCE.md #9/#10 for why
+ * confidence calibration alone doesn't catch this: a learner can report
+ * accurate confidence while still visibly rushing (answering wrong questions
+ * much faster than their own correct ones), which is a distinct, actionable
+ * "slow down and actually work through it" signal rather than a knowledge gap.
+ * Compares this learner's OWN median time on wrong vs. correct answers (not a
+ * fixed cutoff — what counts as "fast" varies enormously by person and by
+ * problem), only among attempts that reported timing data at all.
+ */
+export function getTimingInsight(learnerId: string): TimingInsight | null {
+  const timed = store.raw.attempts.filter(
+    (a) => a.learner_id === learnerId && a.time_spent_ms !== null
+  );
+  const wrongTimes = timed.filter((a) => a.outcome !== "correct").map((a) => a.time_spent_ms as number);
+  const correctTimes = timed.filter((a) => a.outcome === "correct").map((a) => a.time_spent_ms as number);
+
+  if (wrongTimes.length < TIMING_MIN_SAMPLE || correctTimes.length < TIMING_MIN_SAMPLE) return null;
+
+  const medianWrongMs = median(wrongTimes);
+  const medianCorrectMs = median(correctTimes);
+  if (medianCorrectMs > 0 && medianWrongMs <= medianCorrectMs * RUSHING_RATIO) {
+    return { type: "rushing", medianWrongMs, medianCorrectMs, wrongCount: wrongTimes.length, correctCount: correctTimes.length };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Class-wide (teacher-facing) aggregation
 //
@@ -718,6 +775,7 @@ export function exportLearnerData(learnerId: string): LearnerExport {
         diagnosis_source: r.diagnosis_source,
         confirmation_status: r.confirmation_status,
         problem_prompt: r.problem_prompt,
+        time_spent_ms: r.time_spent_ms,
       })),
     spotMistakeAttempts: s.spotMistakeAttempts
       .filter((r) => r.learner_id === learnerId)
@@ -736,7 +794,9 @@ export interface LearnerImportData {
   // on importConceptMasteryRowSchema in validation.ts.
   conceptMastery: (Omit<ConceptMasteryRow, "learner_id" | "mastered_at"> & { mastered_at?: number | null })[];
   misconceptionEvents: Omit<MisconceptionEventRow, "id" | "learner_id">[];
-  attempts: Omit<AttemptRow, "id" | "learner_id">[];
+  // time_spent_ms optional for the same "don't break old backups" reason as
+  // mastered_at above — see importAttemptRowSchema in validation.ts.
+  attempts: (Omit<AttemptRow, "id" | "learner_id" | "time_spent_ms"> & { time_spent_ms?: number | null })[];
   spotMistakeAttempts?: Omit<SpotMistakeAttemptRow, "id" | "learner_id">[];
 }
 
@@ -757,7 +817,12 @@ export function importLearnerData(targetLearnerId: string, data: LearnerImportDa
     s.misconceptionEvents.push({ ...row, id: s.nextEventId++, learner_id: targetLearnerId });
   }
   for (const row of data.attempts) {
-    s.attempts.push({ ...row, id: s.nextAttemptId++, learner_id: targetLearnerId });
+    s.attempts.push({
+      ...row,
+      id: s.nextAttemptId++,
+      learner_id: targetLearnerId,
+      time_spent_ms: row.time_spent_ms ?? null,
+    });
   }
   for (const row of data.spotMistakeAttempts ?? []) {
     s.spotMistakeAttempts.push({ ...row, id: s.nextSpotMistakeId++, learner_id: targetLearnerId });

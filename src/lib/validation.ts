@@ -14,6 +14,12 @@ export const submitAnswerSchema = z.object({
   // match a known distractor, this lets Gemini classify the misconception from
   // reasoning instead of falling back to a generic message. Untrusted student input.
   shownWork: z.string().max(600).optional(),
+  // Client-measured wall-clock time between the problem being shown and this
+  // submission (see useProblemTimer.ts). Optional (an older client build or a
+  // direct API call won't send it) and capped generously — a real learner
+  // could legitimately step away mid-problem for a while; this cap exists to
+  // reject obviously-bogus values, not to police how long someone thinks.
+  timeSpentMs: z.number().int().min(0).max(6 * 60 * 60 * 1000).optional(),
 });
 
 export const nextProblemQuerySchema = z.object({
@@ -107,6 +113,9 @@ const importAttemptRowSchema = z.object({
   diagnosis_source: diagnosisSourceEnum,
   confirmation_status: z.enum(["none", "pending", "confirmed", "caught"]),
   problem_prompt: z.string().max(300),
+  // Optional: exports made before this field existed won't have it — same
+  // "don't break old backups" spirit as mastered_at above.
+  time_spent_ms: z.number().int().min(0).nullable().optional(),
 });
 
 const importSpotMistakeRowSchema = z.object({

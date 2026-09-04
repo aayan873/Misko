@@ -46,6 +46,14 @@ interface CalibrationInsight {
   count: number;
 }
 
+interface TimingInsight {
+  type: "rushing";
+  medianWrongMs: number;
+  medianCorrectMs: number;
+  wrongCount: number;
+  correctCount: number;
+}
+
 interface SpotMistakeStats {
   attempted: number;
   caught: number;
@@ -59,6 +67,7 @@ interface LearnerState {
   frontierConcept: string | null;
   confirmationStats: ConfirmationStats;
   spotMistakeStats: SpotMistakeStats;
+  timingInsight: TimingInsight | null;
 }
 
 export default function DashboardPage() {
@@ -273,6 +282,21 @@ export default function DashboardPage() {
                   right anyway. You know this better than you think.
                 </>
               )}
+            </p>
+          </div>
+        )}
+        {state.timingInsight && (
+          <div className="callout danger mb-5">
+            <p className="text-[14px] leading-relaxed text-ink-soft">
+              Your wrong answers are taking about{" "}
+              <span className="font-semibold text-ink">
+                {Math.round(state.timingInsight.medianWrongMs / 1000)}s
+              </span>{" "}
+              on average, versus{" "}
+              <span className="font-semibold text-ink">
+                {Math.round(state.timingInsight.medianCorrectMs / 1000)}s
+              </span>{" "}
+              for your correct ones. Might be worth slowing down before submitting.
             </p>
           </div>
         )}

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-  const { learnerId, problemId, answer, confidenceBefore, hintLevel, shownWork } = parsed.data;
+  const { learnerId, problemId, answer, confidenceBefore, hintLevel, shownWork, timeSpentMs } = parsed.data;
 
   const global = checkRateLimit(GLOBAL_KEY, GLOBAL_LIMIT, GLOBAL_WINDOW_MS);
   if (!global.allowed) {
@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
       learnerAnswer: answer,
       confirmationStatus: newConfirmationStatus,
       diagnosisSource: suspicionSource,
+      timeSpentMs,
     });
 
     const afterMastery = getConceptMastery(learnerId, problem.conceptId);
@@ -244,6 +245,7 @@ export async function POST(req: NextRequest) {
     problemPrompt: problem.promptText,
     learnerAnswer: answer,
     diagnosisSource,
+    timeSpentMs,
   });
 
   // Recent misconception history (any severity, resolved or not — repeated mistakes

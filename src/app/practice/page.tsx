@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLearnerId } from "@/lib/useLearnerId";
 import { useSpeechToText } from "@/lib/useSpeechToText";
+import { useProblemTimer } from "@/lib/useProblemTimer";
 import { resizeImageToBase64 } from "@/lib/resizeImage";
 import ReasoningTrace from "@/components/ReasoningTrace";
 import { StatusIcon } from "@/components/GradeMarks";
@@ -77,6 +78,11 @@ export default function PracticePage() {
   const speech = useSpeechToText((transcript) => {
     setShownWork((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
   });
+  // Starts counting the moment a problem is shown (problem.id changes) and
+  // keeps counting through a same-problem retry (tryAgainSameProblem doesn't
+  // change problem.id) — the elapsed time up to the submission that actually
+  // resolves the problem is what's meaningful here, not just the last retry.
+  const problemTimer = useProblemTimer(problem?.id ?? null);
 
   const loadNextProblem = useCallback(async () => {
     if (!learnerId) return;
@@ -125,6 +131,7 @@ export default function PracticePage() {
           confidenceBefore: confidence,
           hintLevel,
           shownWork: shownWork.trim() || undefined,
+          timeSpentMs: problemTimer.elapsedMs() ?? undefined,
         }),
       });
       if (!res.ok) {

@@ -53,6 +53,24 @@ describe("input validation (API boundary security, prompt.md §19)", () => {
     );
   });
 
+  it("submitAnswerSchema accepts a missing timeSpentMs (optional) and rejects an invalid one", () => {
+    const base = {
+      learnerId: "39cb6a4d-898f-4c44-8458-7efaffef320b",
+      problemId: "p1",
+      answer: "12",
+      confidenceBefore: 3,
+      hintLevel: 1 as const,
+    };
+    expect(submitAnswerSchema.safeParse(base).success).toBe(true);
+    expect(submitAnswerSchema.safeParse({ ...base, timeSpentMs: 5000 }).success).toBe(true);
+    expect(submitAnswerSchema.safeParse({ ...base, timeSpentMs: 0 }).success).toBe(true);
+    expect(submitAnswerSchema.safeParse({ ...base, timeSpentMs: -1 }).success).toBe(false);
+    expect(submitAnswerSchema.safeParse({ ...base, timeSpentMs: 1.5 }).success).toBe(false);
+    expect(submitAnswerSchema.safeParse({ ...base, timeSpentMs: 7 * 60 * 60 * 1000 }).success).toBe(
+      false
+    );
+  });
+
   it("nextProblemQuerySchema rejects a missing/null learnerId", () => {
     expect(nextProblemQuerySchema.safeParse({ learnerId: null }).success).toBe(false);
   });

@@ -89,6 +89,10 @@ export interface AttemptRow {
   diagnosis_source: DiagnosisSource;
   confirmation_status: ConfirmationStatus;
   problem_prompt: string;
+  /** Milliseconds between the problem being shown and the answer being submitted,
+   *  client-measured (see useProblemTimer.ts). Null for attempts recorded before
+   *  this field existed, or where the client didn't report one. */
+  time_spent_ms: number | null;
 }
 
 export interface SpotMistakeAttemptRow {

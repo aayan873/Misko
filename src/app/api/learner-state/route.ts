@@ -10,6 +10,7 @@ import {
   getConfirmationStats,
   getConfirmationStatsByConcept,
   getSpotMistakeStats,
+  getTimingInsight,
 } from "@/lib/learnerModel";
 import { nextProblemQuerySchema } from "@/lib/validation";
 
@@ -65,5 +66,6 @@ export async function GET(req: NextRequest) {
     frontierConcept: frontierConcept(learnerId),
     confirmationStats: getConfirmationStats(learnerId),
     spotMistakeStats: getSpotMistakeStats(learnerId),
+    timingInsight: getTimingInsight(learnerId),
   });
 }
