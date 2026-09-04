@@ -127,7 +127,12 @@ export default function PracticePage() {
           shownWork: shownWork.trim() || undefined,
         }),
       });
-      if (!res.ok) throw new Error("Failed to submit answer");
+      if (!res.ok) {
+        // The route returns a specific message even on 429/400 (see
+        // /api/submit-answer) — surface that instead of a generic failure.
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.error ?? "Failed to submit answer");
+      }
       const data: SubmitResult = await res.json();
       setResult(data);
       setStreak((s) => (data.outcome === "correct" ? s + 1 : 0));

@@ -21,11 +21,25 @@ import {
 } from "@/lib/ai/gemini";
 import { submitAnswerSchema } from "@/lib/validation";
 import { ConfirmationStatus, DiagnosisSource } from "@/lib/store";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 // Computed once at module load, not per-request — the IDF weighting in
 // classifyByTextSimilarity needs the full taxonomy corpus regardless of which
 // concept's candidates are being checked (see textSimilarity.ts).
 const ALL_MISCONCEPTION_DESCRIPTIONS = MISCONCEPTIONS.map((m) => m.description);
+
+// The other real, billed-Gemini-call endpoint besides /api/transcribe-work —
+// a single request here can trigger up to two LLM calls (classification +
+// diagnosis, or reasoning-check + correct-feedback). Naturally paced by the
+// practice UI for a real user, but nothing stops a direct hit at any rate.
+// Limits set generous enough that no real practice session could ever notice
+// them (60/5min per learner is ~1 every 5 seconds sustained) — this is a
+// cost backstop, not a gameplay throttle.
+const PER_LEARNER_LIMIT = 60;
+const PER_LEARNER_WINDOW_MS = 5 * 60 * 1000;
+const GLOBAL_LIMIT = 300;
+const GLOBAL_WINDOW_MS = 5 * 60 * 1000;
+const GLOBAL_KEY = "submit-answer:global";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -34,6 +48,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
   const { learnerId, problemId, answer, confidenceBefore, hintLevel, shownWork } = parsed.data;
+
+  const global = checkRateLimit(GLOBAL_KEY, GLOBAL_LIMIT, GLOBAL_WINDOW_MS);
+  if (!global.allowed) {
+    return NextResponse.json({ error: "Busy right now — try again in a few minutes." }, { status: 429 });
+  }
+  const perLearner = checkRateLimit(`submit-answer:${learnerId}`, PER_LEARNER_LIMIT, PER_LEARNER_WINDOW_MS);
+  if (!perLearner.allowed) {
+    return NextResponse.json({ error: "Too many submissions in a row — slow down a little." }, { status: 429 });
+  }
 
   const problem = getCachedProblem(problemId);
   if (!problem) {
