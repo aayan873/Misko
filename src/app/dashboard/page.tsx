@@ -44,6 +44,11 @@ interface CalibrationInsight {
   count: number;
 }
 
+interface SpotMistakeStats {
+  attempted: number;
+  caught: number;
+}
+
 interface LearnerState {
   mastery: MasteryEntry[];
   misconceptionHistory: MisconceptionEntry[];
@@ -51,6 +56,7 @@ interface LearnerState {
   calibrationInsight: CalibrationInsight | null;
   frontierConcept: string | null;
   confirmationStats: ConfirmationStats;
+  spotMistakeStats: SpotMistakeStats;
 }
 
 export default function DashboardPage() {
@@ -147,6 +153,21 @@ export default function DashboardPage() {
           </>
         )}
       </section>
+
+      {state.spotMistakeStats.attempted > 0 && (
+        <section className="card mt-10 p-7">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Spot the Mistake</p>
+          <p className="mt-2 font-display text-[36px] text-ink">
+            {state.spotMistakeStats.caught}{" "}
+            <span className="text-ink-faint">/ {state.spotMistakeStats.attempted}</span>{" "}
+            <span className="text-[19px] text-ink-soft">mistakes caught</span>
+          </p>
+          <p className="mt-2.5 max-w-[56ch] text-[15px] leading-relaxed text-ink-soft">
+            From the reverse exercise — spotting the flawed step in a worked solution that
+            got it wrong on purpose, rather than solving it yourself.
+          </p>
+        </section>
+      )}
 
       <section className="mt-10">
         <h2 className="section-title">Concept mastery</h2>

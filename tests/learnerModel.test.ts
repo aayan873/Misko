@@ -25,6 +25,8 @@ const {
   getClassRoster,
   exportLearnerData,
   importLearnerData,
+  recordSpotMistakeAttempt,
+  getSpotMistakeStats,
   MASTERY_MIN_ATTEMPTS,
   BASE_REVIEW_INTERVAL,
   MAX_REVIEW_INTERVAL,
@@ -782,6 +784,12 @@ describe("export / import", () => {
       problemPrompt: "6 + 7 x 9",
       learnerAnswer: "69",
     });
+    recordSpotMistakeAttempt({
+      learnerId: source,
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      conceptId: "order-of-operations",
+      correct: true,
+    });
 
     const exported = exportLearnerData(source);
     const target = learnerId("exp-target");
@@ -789,6 +797,7 @@ describe("export / import", () => {
       conceptMastery: exported.conceptMastery,
       misconceptionEvents: exported.misconceptionEvents,
       attempts: exported.attempts,
+      spotMistakeAttempts: exported.spotMistakeAttempts,
     });
 
     const sourceMastery = getConceptMastery(source, "order-of-operations");
@@ -798,6 +807,8 @@ describe("export / import", () => {
     expect(targetMastery.p_mastery).toBe(sourceMastery.p_mastery);
     expect(getMisconceptionHistory(target)).toHaveLength(1);
     expect(getMisconceptionHistory(target)[0].misconception_id).toBe("ORDER_LEFT_TO_RIGHT");
+    expect(getSpotMistakeStats(target)).toEqual(getSpotMistakeStats(source));
+    expect(getSpotMistakeStats(target)).toEqual({ attempted: 1, caught: 1 });
 
     // The original learner is untouched by exporting/importing from it.
     expect(getConceptMastery(source, "order-of-operations").attempts).toBe(2);
@@ -860,5 +871,29 @@ describe("export / import", () => {
 
     expect(getConceptMastery(target, "order-of-operations").attempts).toBe(3);
     expect(getConceptMastery(learnerId("exp-ids-unrelated"), "order-of-operations").attempts).toBe(1);
+  });
+});
+
+describe("Spot the Mistake stats (persisted, separate from BKT/mastery)", () => {
+  it("starts at zero for a learner with no attempts", () => {
+    expect(getSpotMistakeStats(learnerId("smk1"))).toEqual({ attempted: 0, caught: 0 });
+  });
+
+  it("accumulates across multiple attempts and survives independently of the mastery gate", () => {
+    const id = learnerId("smk2");
+    recordSpotMistakeAttempt({ learnerId: id, misconceptionId: "ORDER_LEFT_TO_RIGHT", conceptId: "order-of-operations", correct: true });
+    recordSpotMistakeAttempt({ learnerId: id, misconceptionId: "NEG_MULT_SIGN", conceptId: "negative-numbers", correct: false });
+    recordSpotMistakeAttempt({ learnerId: id, misconceptionId: "CLT_DROP_VARIABLE", conceptId: "combining-like-terms", correct: true });
+
+    expect(getSpotMistakeStats(id)).toEqual({ attempted: 3, caught: 2 });
+    // Doesn't touch concept mastery at all — a separate, additive signal.
+    expect(getConceptMastery(id, "order-of-operations").attempts).toBe(0);
+  });
+
+  it("is scoped per learner", () => {
+    const a = learnerId("smk-a");
+    const b = learnerId("smk-b");
+    recordSpotMistakeAttempt({ learnerId: a, misconceptionId: "ORDER_LEFT_TO_RIGHT", conceptId: "order-of-operations", correct: true });
+    expect(getSpotMistakeStats(b)).toEqual({ attempted: 0, caught: 0 });
   });
 });

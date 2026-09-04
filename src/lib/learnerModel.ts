@@ -1,4 +1,11 @@
-import { store, DiagnosisSource, ConfirmationStatus, MisconceptionEventRow, AttemptRow } from "./store";
+import {
+  store,
+  DiagnosisSource,
+  ConfirmationStatus,
+  MisconceptionEventRow,
+  AttemptRow,
+  SpotMistakeAttemptRow,
+} from "./store";
 import { CONCEPTS, ConceptId, getConcept } from "./domain/concepts";
 import { getMisconception } from "./domain/misconceptions";
 import {
@@ -666,6 +673,7 @@ export interface LearnerExport {
   conceptMastery: ConceptMasteryRow[];
   misconceptionEvents: Omit<MisconceptionEventRow, "id" | "learner_id">[];
   attempts: Omit<AttemptRow, "id" | "learner_id">[];
+  spotMistakeAttempts: Omit<SpotMistakeAttemptRow, "id" | "learner_id">[];
 }
 
 export function exportLearnerData(learnerId: string): LearnerExport {
@@ -698,6 +706,14 @@ export function exportLearnerData(learnerId: string): LearnerExport {
         confirmation_status: r.confirmation_status,
         problem_prompt: r.problem_prompt,
       })),
+    spotMistakeAttempts: s.spotMistakeAttempts
+      .filter((r) => r.learner_id === learnerId)
+      .map((r) => ({
+        misconception_id: r.misconception_id,
+        concept_id: r.concept_id,
+        correct: r.correct,
+        created_at: r.created_at,
+      })),
   };
 }
 
@@ -705,6 +721,7 @@ export interface LearnerImportData {
   conceptMastery: Omit<ConceptMasteryRow, "learner_id">[];
   misconceptionEvents: Omit<MisconceptionEventRow, "id" | "learner_id">[];
   attempts: Omit<AttemptRow, "id" | "learner_id">[];
+  spotMistakeAttempts?: Omit<SpotMistakeAttemptRow, "id" | "learner_id">[];
 }
 
 /** Clean replace, not merge, for the target learner id — same shape as
@@ -715,6 +732,7 @@ export function importLearnerData(targetLearnerId: string, data: LearnerImportDa
   s.conceptMastery = s.conceptMastery.filter((r) => r.learner_id !== targetLearnerId);
   s.misconceptionEvents = s.misconceptionEvents.filter((r) => r.learner_id !== targetLearnerId);
   s.attempts = s.attempts.filter((r) => r.learner_id !== targetLearnerId);
+  s.spotMistakeAttempts = s.spotMistakeAttempts.filter((r) => r.learner_id !== targetLearnerId);
 
   for (const row of data.conceptMastery) {
     s.conceptMastery.push({ ...row, learner_id: targetLearnerId });
@@ -725,6 +743,47 @@ export function importLearnerData(targetLearnerId: string, data: LearnerImportDa
   for (const row of data.attempts) {
     s.attempts.push({ ...row, id: s.nextAttemptId++, learner_id: targetLearnerId });
   }
+  for (const row of data.spotMistakeAttempts ?? []) {
+    s.spotMistakeAttempts.push({ ...row, id: s.nextSpotMistakeId++, learner_id: targetLearnerId });
+  }
   store.save();
+}
+
+// ---------------------------------------------------------------------------
+// Spot the Mistake stats — kept in its own table, separate from BKT/mastery
+// on purpose (see src/app/spot-the-mistake/page.tsx and its API routes):
+// diagnosing someone else's mistake is a different skill from solving a
+// problem yourself, and folding it into p_mastery would conflate two
+// different signals without real justification. This just persists what was
+// previously ephemeral React state, so it survives a refresh and is visible
+// on the dashboard / to a teacher, without touching the mastery gate at all.
+// ---------------------------------------------------------------------------
+
+export function recordSpotMistakeAttempt(params: {
+  learnerId: string;
+  misconceptionId: string;
+  conceptId: ConceptId;
+  correct: boolean;
+}): void {
+  const s = store.raw;
+  s.spotMistakeAttempts.push({
+    id: s.nextSpotMistakeId++,
+    learner_id: params.learnerId,
+    misconception_id: params.misconceptionId,
+    concept_id: params.conceptId,
+    correct: params.correct ? 1 : 0,
+    created_at: Date.now(),
+  });
+  store.save();
+}
+
+export interface SpotMistakeStats {
+  attempted: number;
+  caught: number;
+}
+
+export function getSpotMistakeStats(learnerId: string): SpotMistakeStats {
+  const rows = store.raw.spotMistakeAttempts.filter((r) => r.learner_id === learnerId);
+  return { attempted: rows.length, caught: rows.filter((r) => r.correct === 1).length };
 }
 

@@ -9,6 +9,7 @@ import {
   frontierConcept,
   getConfirmationStats,
   getConfirmationStatsByConcept,
+  getSpotMistakeStats,
 } from "@/lib/learnerModel";
 import { nextProblemQuerySchema } from "@/lib/validation";
 
@@ -63,5 +64,6 @@ export async function GET(req: NextRequest) {
     calibrationInsight,
     frontierConcept: frontierConcept(learnerId),
     confirmationStats: getConfirmationStats(learnerId),
+    spotMistakeStats: getSpotMistakeStats(learnerId),
   });
 }

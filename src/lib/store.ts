@@ -86,13 +86,24 @@ export interface AttemptRow {
   problem_prompt: string;
 }
 
+export interface SpotMistakeAttemptRow {
+  id: number;
+  learner_id: string;
+  misconception_id: string;
+  concept_id: ConceptId;
+  correct: number;
+  created_at: number;
+}
+
 interface StoreShape {
   learners: LearnerRow[];
   conceptMastery: ConceptMasteryRow[];
   misconceptionEvents: MisconceptionEventRow[];
   attempts: AttemptRow[];
+  spotMistakeAttempts: SpotMistakeAttemptRow[];
   nextEventId: number;
   nextAttemptId: number;
+  nextSpotMistakeId: number;
 }
 
 function emptyStore(): StoreShape {
@@ -101,8 +112,10 @@ function emptyStore(): StoreShape {
     conceptMastery: [],
     misconceptionEvents: [],
     attempts: [],
+    spotMistakeAttempts: [],
     nextEventId: 1,
     nextAttemptId: 1,
+    nextSpotMistakeId: 1,
   };
 }
 
@@ -163,6 +176,7 @@ export const store = {
     s.conceptMastery = s.conceptMastery.filter((r) => r.learner_id !== learnerId);
     s.misconceptionEvents = s.misconceptionEvents.filter((r) => r.learner_id !== learnerId);
     s.attempts = s.attempts.filter((r) => r.learner_id !== learnerId);
+    s.spotMistakeAttempts = s.spotMistakeAttempts.filter((r) => r.learner_id !== learnerId);
     persist(s);
   },
 };

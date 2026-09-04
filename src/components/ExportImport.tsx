@@ -55,6 +55,7 @@ export default function ExportImport({ learnerId, onImported }: ExportImportProp
             conceptMastery: parsed.conceptMastery ?? [],
             misconceptionEvents: parsed.misconceptionEvents ?? [],
             attempts: parsed.attempts ?? [],
+            spotMistakeAttempts: parsed.spotMistakeAttempts ?? [],
           },
         }),
       });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMisconception } from "@/lib/domain/misconceptions";
 import { getCachedRound } from "@/lib/spotMistakeCache";
 import { spotMistakeSubmitSchema } from "@/lib/validation";
+import { recordSpotMistakeAttempt, getSpotMistakeStats } from "@/lib/learnerModel";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-  const { roundId, selectedStepIndex } = parsed.data;
+  const { learnerId, roundId, selectedStepIndex } = parsed.data;
 
   const round = getCachedRound(roundId);
   if (!round) {
@@ -22,10 +23,20 @@ export async function POST(req: NextRequest) {
   const misconception = getMisconception(round.misconceptionId);
   const correct = selectedStepIndex === round.walkthrough.flawedStepIndex;
 
+  if (misconception) {
+    recordSpotMistakeAttempt({
+      learnerId,
+      misconceptionId: misconception.id,
+      conceptId: misconception.conceptId,
+      correct,
+    });
+  }
+
   return NextResponse.json({
     correct,
     correctStepIndex: round.walkthrough.flawedStepIndex,
     misconceptionName: misconception?.name ?? null,
     explanation: misconception?.description ?? null,
+    stats: getSpotMistakeStats(learnerId),
   });
 }

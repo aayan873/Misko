@@ -3,7 +3,7 @@ import { CONCEPTS } from "@/lib/domain/concepts";
 import { misconceptionsForConcept } from "@/lib/domain/misconceptions";
 import { generateProblemForMisconception } from "@/lib/domain/problemEngine";
 import { buildFlawedWalkthrough, hasFlawedWalkthrough } from "@/lib/domain/flawedWorkedExample";
-import { frontierConcept } from "@/lib/learnerModel";
+import { frontierConcept, getSpotMistakeStats } from "@/lib/learnerModel";
 import { cacheRound } from "@/lib/spotMistakeCache";
 import { spotMistakeQuerySchema } from "@/lib/validation";
 
@@ -37,5 +37,6 @@ export async function GET(req: NextRequest) {
     conceptId,
     problemText: walkthrough.problemText,
     steps: walkthrough.steps.map((s) => s.text),
+    stats: getSpotMistakeStats(learnerId),
   });
 }

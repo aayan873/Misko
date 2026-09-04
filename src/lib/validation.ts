@@ -30,6 +30,7 @@ export const spotMistakeQuerySchema = z.object({
 });
 
 export const spotMistakeSubmitSchema = z.object({
+  learnerId: learnerIdSchema,
   roundId: z.string().min(1).max(200),
   selectedStepIndex: z.number().int().min(0).max(20),
 });
@@ -95,11 +96,19 @@ const importAttemptRowSchema = z.object({
   problem_prompt: z.string().max(300),
 });
 
+const importSpotMistakeRowSchema = z.object({
+  misconception_id: z.string().min(1).max(100),
+  concept_id: conceptIdEnum,
+  correct: zeroOrOne,
+  created_at: z.number(),
+});
+
 export const importDataSchema = z.object({
   learnerId: learnerIdSchema,
   data: z.object({
     conceptMastery: z.array(importConceptMasteryRowSchema).max(10),
     misconceptionEvents: z.array(importMisconceptionEventRowSchema).max(5000),
+    spotMistakeAttempts: z.array(importSpotMistakeRowSchema).max(20_000).optional(),
     attempts: z.array(importAttemptRowSchema).max(20_000),
   }),
 });

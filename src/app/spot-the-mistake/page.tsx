@@ -4,11 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useLearnerId } from "@/lib/useLearnerId";
 import { StatusIcon } from "@/components/GradeMarks";
 
+interface Stats {
+  attempted: number;
+  caught: number;
+}
+
 interface Round {
   roundId: string;
   conceptId: string;
   problemText: string;
   steps: string[];
+  stats: Stats;
 }
 
 interface SubmitResult {
@@ -16,6 +22,7 @@ interface SubmitResult {
   correctStepIndex: number;
   misconceptionName: string | null;
   explanation: string | null;
+  stats: Stats;
 }
 
 type Phase = "loading" | "choosing" | "submitting" | "result" | "error";
@@ -26,7 +33,7 @@ export default function SpotTheMistakePage() {
   const [round, setRound] = useState<Round | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState<SubmitResult | null>(null);
-  const [tally, setTally] = useState({ caught: 0, missed: 0 });
+  const [stats, setStats] = useState<Stats>({ attempted: 0, caught: 0 });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadRound = useCallback(async () => {
@@ -39,6 +46,7 @@ export default function SpotTheMistakePage() {
       if (!res.ok) throw new Error("Failed to load a round");
       const data = await res.json();
       setRound(data);
+      setStats(data.stats);
       setPhase("choosing");
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Something went wrong");
@@ -51,19 +59,19 @@ export default function SpotTheMistakePage() {
   }, [learnerId, loadRound]);
 
   async function submitGuess(stepIndex: number) {
-    if (!round) return;
+    if (!round || !learnerId) return;
     setSelected(stepIndex);
     setPhase("submitting");
     try {
       const res = await fetch("/api/spot-mistake/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roundId: round.roundId, selectedStepIndex: stepIndex }),
+        body: JSON.stringify({ learnerId, roundId: round.roundId, selectedStepIndex: stepIndex }),
       });
       if (!res.ok) throw new Error("Failed to submit");
       const data: SubmitResult = await res.json();
       setResult(data);
-      setTally((t) => (data.correct ? { ...t, caught: t.caught + 1 } : { ...t, missed: t.missed + 1 }));
+      setStats(data.stats);
       setPhase("result");
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Something went wrong");
@@ -98,9 +106,9 @@ export default function SpotTheMistakePage() {
         <p className="text-[13px] text-ink-faint">
           Misko solved this one wrong. Find the step where it went off track.
         </p>
-        {tally.caught + tally.missed > 0 && (
+        {stats.attempted > 0 && (
           <span className="flex-none font-mono text-[13px] text-ink-faint">
-            {tally.caught}/{tally.caught + tally.missed} caught
+            {stats.caught}/{stats.attempted} caught
           </span>
         )}
       </div>
