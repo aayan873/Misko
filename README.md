@@ -39,7 +39,8 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
 - **Gates progress on actual mastery**, not just completing problems. Each concept's
   mastery is a live probability estimate (Bayesian Knowledge Tracing, updated after
   every answer) rather than a plain streak counter, so one slip during review lowers it
-  instead of wiping out your progress.
+  instead of wiping out your progress. You watch this number update right after you
+  answer, not just on the dashboard later.
 - **Tracks confidence calibration.** You predict your confidence before answering, and
   the dashboard shows where that diverges from your actual accuracy.
 - **Classifies freeform reasoning.** If your wrong answer doesn't match a known

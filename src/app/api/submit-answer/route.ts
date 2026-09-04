@@ -8,7 +8,9 @@ import {
   pendingConfirmation,
   resolvePendingConfirmation,
   lastMisconceptionOnConcept,
+  getConceptMastery,
 } from "@/lib/learnerModel";
+import { getConcept } from "@/lib/domain/concepts";
 import {
   classifyCorrectReasoning,
   classifyFreeformMisconception,
@@ -35,6 +37,12 @@ export async function POST(req: NextRequest) {
   }
 
   const analysis = analyzeAnswer(problem, answer);
+
+  // Captured before recordAttempt mutates it, so the response can show the learner
+  // exactly how much this one answer moved the needle (see MasteryDelta.tsx).
+  const masteryBefore = getConceptMastery(learnerId, problem.conceptId);
+  const pMasteryBefore = masteryBefore.p_mastery;
+  const masteredBefore = masteryBefore.mastered === 1;
 
   // Was this problem specifically served as a silent confirmation-round check on an
   // earlier correct-but-suspect answer? See "Catching the Correct Answer Trap" in
@@ -100,6 +108,8 @@ export async function POST(req: NextRequest) {
       diagnosisSource: suspicionSource,
     });
 
+    const afterMastery = getConceptMastery(learnerId, problem.conceptId);
+
     const feedback = await generateCorrectFeedback(problem);
     return NextResponse.json({
       outcome: "correct",
@@ -108,6 +118,11 @@ export async function POST(req: NextRequest) {
       confidenceBefore,
       wasWellCalibrated: confidenceBefore >= 4,
       confirmationResolved,
+      conceptName: getConcept(problem.conceptId).name,
+      pMasteryBefore,
+      pMasteryAfter: afterMastery.p_mastery,
+      masteredNow: afterMastery.mastered === 1,
+      masteredBefore,
       steps: [
         "Checked your answer against the known-correct value",
         "Correct",
@@ -158,7 +173,7 @@ export async function POST(req: NextRequest) {
       } else if (classification.attempted) {
         steps.push("Gemini reviewed it but found no clear match to a known pattern");
       } else {
-        steps.push("AI classification unavailable (no API key configured) — showing a general hint instead");
+        steps.push("Showing a general hint instead");
       }
     } else {
       steps.push("No written reasoning provided — add how you solved it for a more specific diagnosis");
@@ -205,6 +220,7 @@ export async function POST(req: NextRequest) {
   });
 
   const revealAnswer = hintLevel >= 3;
+  const afterMastery = getConceptMastery(learnerId, problem.conceptId);
 
   return NextResponse.json({
     outcome: finalOutcome,
@@ -216,6 +232,11 @@ export async function POST(req: NextRequest) {
     correctAnswer: revealAnswer ? problem.correctAnswer : undefined,
     confirmationResolved: caughtOriginalPrompt ? "caught" : null,
     caughtOriginalPrompt,
+    conceptName: getConcept(problem.conceptId).name,
+    pMasteryBefore,
+    pMasteryAfter: afterMastery.p_mastery,
+    masteredNow: afterMastery.mastered === 1,
+    masteredBefore,
     steps,
   });
 }
