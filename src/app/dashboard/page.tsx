@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLearnerId } from "@/lib/useLearnerId";
 import ConceptPath, { ConceptPathEntry } from "@/components/ConceptPath";
 import MisconceptionRadar from "@/components/MisconceptionRadar";
+import ExportImport from "@/components/ExportImport";
 
 const SHORT_CONCEPT_LABEL: Record<string, string> = {
   "order-of-operations": "Order of Ops",
@@ -57,13 +58,18 @@ export default function DashboardPage() {
   const [state, setState] = useState<LearnerState | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadState = useCallback(() => {
     if (!learnerId) return;
+    setLoading(true);
     fetch(`/api/learner-state?learnerId=${learnerId}`)
       .then((r) => r.json())
       .then(setState)
       .finally(() => setLoading(false));
   }, [learnerId]);
+
+  useEffect(() => {
+    loadState();
+  }, [loadState]);
 
   if (!learnerId || loading) {
     return <div className="mx-auto max-w-[940px] px-5 sm:px-8 py-24 text-center text-ink-faint">Loading…</div>;
@@ -74,11 +80,15 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-[940px] px-5 sm:px-8 py-24 text-center">
         <h1 className="font-display text-2xl font-semibold text-ink">No data yet</h1>
         <p className="mt-3 text-ink-soft">
-          Your learning model builds up as you practice — nothing to show yet.
+          Your learning model builds up as you practice — nothing to show yet. Switched
+          browsers or lost your data? Restore a backup below instead of starting over.
         </p>
         <a href="/practice" className="btn-primary mt-8 inline-flex">
           Start practicing →
         </a>
+        <div className="mt-6 flex justify-center">
+          <ExportImport learnerId={learnerId} onImported={loadState} />
+        </div>
       </div>
     );
   }
@@ -100,6 +110,10 @@ export default function DashboardPage() {
         Not a black box — this is the exact state that decides every hint you get. Five
         concepts, graded like returned work.
       </p>
+
+      <div className="mt-6">
+        <ExportImport learnerId={learnerId} onImported={loadState} />
+      </div>
 
       <section className="card mt-10 p-7">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Confirmed mastery</p>

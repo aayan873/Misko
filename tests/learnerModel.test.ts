@@ -13,6 +13,7 @@ const {
   recordAttempt,
   frontierConcept,
   getConceptMastery,
+  getAllMastery,
   pendingConfirmation,
   resolvePendingConfirmation,
   getConfirmationStats,
@@ -22,6 +23,8 @@ const {
   getClassMisconceptionSummary,
   getAtRiskLearners,
   getClassRoster,
+  exportLearnerData,
+  importLearnerData,
   MASTERY_MIN_ATTEMPTS,
   BASE_REVIEW_INTERVAL,
   MAX_REVIEW_INTERVAL,
@@ -718,5 +721,144 @@ describe("spaced review scheduling", () => {
     expect(row.review_interval).toBe(BASE_REVIEW_INTERVAL);
     // Still marked mastered (sticky) even though the review was missed.
     expect(row.mastered).toBe(1);
+  });
+});
+
+describe("export / import", () => {
+  it("exports only the given learner's rows, with id and learner_id stripped from event/attempt rows", () => {
+    const a = learnerId("exp-a");
+    const other = learnerId("exp-other");
+    recordAttempt({
+      learnerId: a,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+      diagnosisSource: "rule",
+    });
+    recordAttempt({
+      learnerId: other,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "z",
+      learnerAnswer: "w",
+    });
+
+    const exported = exportLearnerData(a);
+    expect(exported.learnerId).toBe(a);
+    expect(exported.attempts).toHaveLength(1);
+    expect(exported.misconceptionEvents).toHaveLength(1);
+    expect("id" in exported.attempts[0]).toBe(false);
+    expect("learner_id" in exported.attempts[0]).toBe(false);
+    expect("id" in exported.misconceptionEvents[0]).toBe(false);
+  });
+
+  it("round-trips: importing a learner's export into a different id reproduces the same state", () => {
+    const source = learnerId("exp-src");
+    recordAttempt({
+      learnerId: source,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "8 + 5 x 9",
+      learnerAnswer: "117",
+      diagnosisSource: "rule",
+    });
+    recordAttempt({
+      learnerId: source,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 4,
+      hintLevelUsed: 1,
+      problemPrompt: "6 + 7 x 9",
+      learnerAnswer: "69",
+    });
+
+    const exported = exportLearnerData(source);
+    const target = learnerId("exp-target");
+    importLearnerData(target, {
+      conceptMastery: exported.conceptMastery,
+      misconceptionEvents: exported.misconceptionEvents,
+      attempts: exported.attempts,
+    });
+
+    const sourceMastery = getConceptMastery(source, "order-of-operations");
+    const targetMastery = getConceptMastery(target, "order-of-operations");
+    expect(targetMastery.attempts).toBe(sourceMastery.attempts);
+    expect(targetMastery.correct).toBe(sourceMastery.correct);
+    expect(targetMastery.p_mastery).toBe(sourceMastery.p_mastery);
+    expect(getMisconceptionHistory(target)).toHaveLength(1);
+    expect(getMisconceptionHistory(target)[0].misconception_id).toBe("ORDER_LEFT_TO_RIGHT");
+
+    // The original learner is untouched by exporting/importing from it.
+    expect(getConceptMastery(source, "order-of-operations").attempts).toBe(2);
+  });
+
+  it("import is a clean replace, not a merge — old data for the target id is gone afterward", () => {
+    const target = learnerId("exp-replace");
+    recordAttempt({
+      learnerId: target,
+      conceptId: "negative-numbers",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "old data",
+      learnerAnswer: "y",
+    });
+    expect(getConceptMastery(target, "negative-numbers").attempts).toBe(1);
+
+    importLearnerData(target, { conceptMastery: [], misconceptionEvents: [], attempts: [] });
+
+    expect(getConceptMastery(target, "negative-numbers").attempts).toBe(0);
+    expect(getAllMastery(target).every((m) => m.attempts === 0)).toBe(true);
+  });
+
+  it("imported rows get fresh ids that don't collide with subsequent new attempts", () => {
+    const source = learnerId("exp-ids-src");
+    for (let i = 0; i < 3; i++) {
+      recordAttempt({
+        learnerId: source,
+        conceptId: "order-of-operations",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "x",
+        learnerAnswer: "y",
+      });
+    }
+    const exported = exportLearnerData(source);
+    const target = learnerId("exp-ids-target");
+    importLearnerData(target, {
+      conceptMastery: exported.conceptMastery,
+      misconceptionEvents: exported.misconceptionEvents,
+      attempts: exported.attempts,
+    });
+
+    // A brand new attempt for an unrelated learner afterward must not collide
+    // with (or be confused for) anything just imported.
+    recordAttempt({
+      learnerId: learnerId("exp-ids-unrelated"),
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "fresh",
+      learnerAnswer: "y",
+    });
+
+    expect(getConceptMastery(target, "order-of-operations").attempts).toBe(3);
+    expect(getConceptMastery(learnerId("exp-ids-unrelated"), "order-of-operations").attempts).toBe(1);
   });
 });

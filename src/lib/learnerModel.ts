@@ -1,4 +1,4 @@
-import { store, DiagnosisSource, ConfirmationStatus } from "./store";
+import { store, DiagnosisSource, ConfirmationStatus, MisconceptionEventRow, AttemptRow } from "./store";
 import { CONCEPTS, ConceptId, getConcept } from "./domain/concepts";
 import { getMisconception } from "./domain/misconceptions";
 import {
@@ -647,5 +647,84 @@ export function getClassRoster(): ClassRosterEntry[] {
       conceptsMastered: getAllMastery(learnerId).filter((m) => m.mastered === 1).length,
     }))
     .sort((a, b) => b.totalAttempts - a.totalAttempts);
+}
+
+// ---------------------------------------------------------------------------
+// Export / import — this app deliberately has no accounts (prompt.md §19,
+// see also the class-view section above): progress lives only in one
+// browser's localStorage-derived learner id. That's a real, previously
+// unaddressed downside of that design — clear cookies, switch devices, or
+// lose localStorage, and the learner model is gone with no recovery path.
+// This doesn't add accounts; it gives the learner a portable backup of their
+// own data, in their own hands, consistent with collecting no more than the
+// minimum needed.
+// ---------------------------------------------------------------------------
+
+export interface LearnerExport {
+  exportedAt: number;
+  learnerId: string;
+  conceptMastery: ConceptMasteryRow[];
+  misconceptionEvents: Omit<MisconceptionEventRow, "id" | "learner_id">[];
+  attempts: Omit<AttemptRow, "id" | "learner_id">[];
+}
+
+export function exportLearnerData(learnerId: string): LearnerExport {
+  const s = store.raw;
+  return {
+    exportedAt: Date.now(),
+    learnerId,
+    conceptMastery: s.conceptMastery.filter((r) => r.learner_id === learnerId),
+    misconceptionEvents: s.misconceptionEvents
+      .filter((r) => r.learner_id === learnerId)
+      .map((r) => ({
+        misconception_id: r.misconception_id,
+        concept_id: r.concept_id,
+        problem_prompt: r.problem_prompt,
+        learner_answer: r.learner_answer,
+        resolved: r.resolved,
+        created_at: r.created_at,
+        diagnosis_source: r.diagnosis_source,
+      })),
+    attempts: s.attempts
+      .filter((r) => r.learner_id === learnerId)
+      .map((r) => ({
+        concept_id: r.concept_id,
+        misconception_id: r.misconception_id,
+        outcome: r.outcome,
+        confidence_before: r.confidence_before,
+        hint_level_used: r.hint_level_used,
+        created_at: r.created_at,
+        diagnosis_source: r.diagnosis_source,
+        confirmation_status: r.confirmation_status,
+        problem_prompt: r.problem_prompt,
+      })),
+  };
+}
+
+export interface LearnerImportData {
+  conceptMastery: Omit<ConceptMasteryRow, "learner_id">[];
+  misconceptionEvents: Omit<MisconceptionEventRow, "id" | "learner_id">[];
+  attempts: Omit<AttemptRow, "id" | "learner_id">[];
+}
+
+/** Clean replace, not merge, for the target learner id — same shape as
+ * store.resetLearner, just followed by writing the imported rows back in
+ * under fresh ids so they can't collide with anything already in the store. */
+export function importLearnerData(targetLearnerId: string, data: LearnerImportData): void {
+  const s = store.raw;
+  s.conceptMastery = s.conceptMastery.filter((r) => r.learner_id !== targetLearnerId);
+  s.misconceptionEvents = s.misconceptionEvents.filter((r) => r.learner_id !== targetLearnerId);
+  s.attempts = s.attempts.filter((r) => r.learner_id !== targetLearnerId);
+
+  for (const row of data.conceptMastery) {
+    s.conceptMastery.push({ ...row, learner_id: targetLearnerId });
+  }
+  for (const row of data.misconceptionEvents) {
+    s.misconceptionEvents.push({ ...row, id: s.nextEventId++, learner_id: targetLearnerId });
+  }
+  for (const row of data.attempts) {
+    s.attempts.push({ ...row, id: s.nextAttemptId++, learner_id: targetLearnerId });
+  }
+  store.save();
 }
 

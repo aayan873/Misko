@@ -43,3 +43,63 @@ export const transcribeWorkSchema = z.object({
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
   problemPromptText: z.string().min(1).max(300),
 });
+
+export const exportQuerySchema = z.object({
+  learnerId: learnerIdSchema,
+});
+
+// Import is untrusted uploaded JSON (see /api/import) — schemas here mirror
+// the store's row shapes exactly, deliberately strict (bounded strings,
+// closed enums, no free-form objects) rather than a loose passthrough.
+const conceptIdEnum = z.enum([
+  "order-of-operations",
+  "negative-numbers",
+  "distributing",
+  "combining-like-terms",
+  "linear-equations",
+]);
+const diagnosisSourceEnum = z.enum(["rule", "ai", "similarity"]).nullable();
+const zeroOrOne = z.union([z.literal(0), z.literal(1)]);
+
+const importConceptMasteryRowSchema = z.object({
+  concept_id: conceptIdEnum,
+  attempts: z.number().int().min(0).max(1_000_000),
+  correct: z.number().int().min(0).max(1_000_000),
+  streak: z.number().int().min(0).max(1_000_000),
+  p_mastery: z.number().min(0).max(1),
+  mastered: zeroOrOne,
+  review_interval: z.number().int().min(0).max(100_000),
+  due_after_attempts: z.number().int().min(0).max(10_000_000).nullable(),
+  updated_at: z.number(),
+});
+
+const importMisconceptionEventRowSchema = z.object({
+  misconception_id: z.string().min(1).max(100),
+  concept_id: conceptIdEnum,
+  problem_prompt: z.string().max(300),
+  learner_answer: z.string().max(300),
+  resolved: zeroOrOne,
+  created_at: z.number(),
+  diagnosis_source: diagnosisSourceEnum,
+});
+
+const importAttemptRowSchema = z.object({
+  concept_id: conceptIdEnum,
+  misconception_id: z.string().max(100).nullable(),
+  outcome: z.string().max(50),
+  confidence_before: z.number().int().min(1).max(5),
+  hint_level_used: z.number().int().min(1).max(3),
+  created_at: z.number(),
+  diagnosis_source: diagnosisSourceEnum,
+  confirmation_status: z.enum(["none", "pending", "confirmed", "caught"]),
+  problem_prompt: z.string().max(300),
+});
+
+export const importDataSchema = z.object({
+  learnerId: learnerIdSchema,
+  data: z.object({
+    conceptMastery: z.array(importConceptMasteryRowSchema).max(10),
+    misconceptionEvents: z.array(importMisconceptionEventRowSchema).max(5000),
+    attempts: z.array(importAttemptRowSchema).max(20_000),
+  }),
+});
