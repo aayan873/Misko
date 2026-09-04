@@ -3,6 +3,15 @@
 import { useEffect, useState } from "react";
 import { useLearnerId } from "@/lib/useLearnerId";
 import ConceptPath, { ConceptPathEntry } from "@/components/ConceptPath";
+import MisconceptionRadar from "@/components/MisconceptionRadar";
+
+const SHORT_CONCEPT_LABEL: Record<string, string> = {
+  "order-of-operations": "Order of Ops",
+  "negative-numbers": "Negatives",
+  distributing: "Distributing",
+  "combining-like-terms": "Like Terms",
+  "linear-equations": "Equations",
+};
 
 type MasteryEntry = ConceptPathEntry;
 
@@ -74,6 +83,14 @@ export default function DashboardPage() {
     );
   }
 
+  const radarAxes = state.mastery.map((m) => ({
+    label: SHORT_CONCEPT_LABEL[m.conceptId] ?? m.conceptId,
+    value: state.misconceptionHistory
+      .filter((h) => h.conceptId === m.conceptId)
+      .reduce((sum, h) => sum + h.occurrences, 0),
+  }));
+  const hasAnyMisconceptions = radarAxes.some((a) => a.value > 0);
+
   return (
     <div className="mx-auto max-w-[940px] px-5 sm:px-8 pb-36 pt-16">
       <h1 className="max-w-[22ch] font-display text-[36px] font-semibold text-ink">
@@ -140,6 +157,19 @@ export default function DashboardPage() {
           )}
         </div>
       </section>
+
+      {hasAnyMisconceptions && (
+        <section className="mt-10">
+          <h2 className="section-title">Where your mistakes cluster</h2>
+          <p className="mt-2.5 mb-6 max-w-[56ch] text-[15px] leading-relaxed text-ink-soft">
+            A shape, not a list — how your wrong answers spread across the 5 concepts, weighted
+            by how often each misconception has come up.
+          </p>
+          <div className="card flex justify-center p-7">
+            <MisconceptionRadar axes={radarAxes} />
+          </div>
+        </section>
+      )}
 
       <section className="mt-10">
         <h2 className="section-title">Misconception history</h2>
