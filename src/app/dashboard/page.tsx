@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useLearnerId } from "@/lib/useLearnerId";
+import { useSessionStart } from "@/lib/useSessionStart";
 import ConceptPath, { ConceptPathEntry } from "@/components/ConceptPath";
 import MisconceptionRadar from "@/components/MisconceptionRadar";
 import ExportImport from "@/components/ExportImport";
+import SessionSummary from "@/components/SessionSummary";
 
 const SHORT_CONCEPT_LABEL: Record<string, string> = {
   "order-of-operations": "Order of Ops",
@@ -61,6 +63,7 @@ interface LearnerState {
 
 export default function DashboardPage() {
   const learnerId = useLearnerId();
+  const sessionStart = useSessionStart();
   const [state, setState] = useState<LearnerState | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -116,6 +119,8 @@ export default function DashboardPage() {
         Not a black box — this is the exact state that decides every hint you get. Five
         concepts, graded like returned work.
       </p>
+
+      {sessionStart && <SessionSummary learnerId={learnerId} sessionStart={sessionStart} />}
 
       <div className="mt-6">
         <ExportImport learnerId={learnerId} onImported={loadState} />

@@ -50,6 +50,14 @@ export const exportQuerySchema = z.object({
   learnerId: learnerIdSchema,
 });
 
+export const sessionSummaryQuerySchema = z.object({
+  learnerId: learnerIdSchema,
+  // A client-supplied sessionStorage timestamp — bounded to a sane past range
+  // rather than trusted outright, since an absurd value would just make an
+  // absurdly-scoped (but harmless, read-only) query.
+  since: z.coerce.number().int().min(0).max(9_999_999_999_999),
+});
+
 // Import is untrusted uploaded JSON (see /api/import) — schemas here mirror
 // the store's row shapes exactly, deliberately strict (bounded strings,
 // closed enums, no free-form objects) rather than a loose passthrough.
@@ -70,6 +78,10 @@ const importConceptMasteryRowSchema = z.object({
   streak: z.number().int().min(0).max(1_000_000),
   p_mastery: z.number().min(0).max(1),
   mastered: zeroOrOne,
+  // Optional: exports made before this field existed won't have it — accepted
+  // as missing rather than rejected, same "don't break old backups" spirit as
+  // the runtime defaulting in learnerModel.ts's getConceptMastery.
+  mastered_at: z.number().nullable().optional(),
   review_interval: z.number().int().min(0).max(100_000),
   due_after_attempts: z.number().int().min(0).max(10_000_000).nullable(),
   updated_at: z.number(),

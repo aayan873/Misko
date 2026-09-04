@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -27,6 +27,7 @@ const {
   importLearnerData,
   recordSpotMistakeAttempt,
   getSpotMistakeStats,
+  getSessionSummary,
   MASTERY_MIN_ATTEMPTS,
   BASE_REVIEW_INTERVAL,
   MAX_REVIEW_INTERVAL,
@@ -895,5 +896,157 @@ describe("Spot the Mistake stats (persisted, separate from BKT/mastery)", () => 
     const b = learnerId("smk-b");
     recordSpotMistakeAttempt({ learnerId: a, misconceptionId: "ORDER_LEFT_TO_RIGHT", conceptId: "order-of-operations", correct: true });
     expect(getSpotMistakeStats(b)).toEqual({ attempted: 0, caught: 0 });
+  });
+});
+
+describe("getSessionSummary", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("only counts attempts at or after the given timestamp", () => {
+    vi.useFakeTimers();
+    const id = learnerId("sess1");
+    vi.setSystemTime(1000);
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "before-session",
+      learnerAnswer: "y",
+    });
+    vi.setSystemTime(5000);
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "in-session",
+      learnerAnswer: "y",
+    });
+
+    const summary = getSessionSummary(id, 3000);
+    expect(summary.attempts).toBe(1);
+    expect(summary.correct).toBe(1);
+  });
+
+  it("only flags a concept as mastered-this-session if mastered_at falls in the window, not just updated_at", () => {
+    vi.useFakeTimers();
+    const id = learnerId("sess2");
+    vi.setSystemTime(1000);
+    for (let i = 0; i < MASTERY_MIN_ATTEMPTS; i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "order-of-operations",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: `mastery-${i}`,
+        learnerAnswer: "y",
+      });
+    }
+    expect(getConceptMastery(id, "order-of-operations").mastered).toBe(1);
+
+    // Session starts AFTER mastery was already reached...
+    const sessionStart = 10_000;
+    vi.setSystemTime(15_000);
+    // ...but the concept gets touched again during the session (e.g. a spaced
+    // review), which bumps updated_at without changing mastered_at.
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "later-review",
+      learnerAnswer: "y",
+    });
+
+    const row = getConceptMastery(id, "order-of-operations");
+    expect(row.updated_at).toBeGreaterThanOrEqual(sessionStart); // touched this session
+    expect(row.mastered_at).toBeLessThan(sessionStart); // but mastered before it
+
+    const summary = getSessionSummary(id, sessionStart);
+    expect(summary.conceptsMasteredNow).toEqual([]);
+  });
+
+  it("does flag a concept mastered during the session window", () => {
+    vi.useFakeTimers();
+    const id = learnerId("sess3");
+    const sessionStart = 1000;
+    vi.setSystemTime(sessionStart);
+    for (let i = 0; i < MASTERY_MIN_ATTEMPTS; i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "order-of-operations",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: `mastery-${i}`,
+        learnerAnswer: "y",
+      });
+    }
+    const summary = getSessionSummary(id, sessionStart);
+    expect(summary.conceptsMasteredNow).toEqual(["Order of Operations"]);
+  });
+
+  it("lists distinct misconception names, most recent first", () => {
+    const id = learnerId("sess4");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "a",
+      learnerAnswer: "x",
+    });
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "b",
+      learnerAnswer: "x",
+    });
+    recordAttempt({
+      learnerId: id,
+      conceptId: "negative-numbers",
+      misconceptionId: "NEG_MULT_SIGN",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "c",
+      learnerAnswer: "x",
+    });
+
+    const summary = getSessionSummary(id, 0);
+    expect(summary.misconceptionNames).toEqual([
+      "Negative-times-negative sign error",
+      "Strict left-to-right evaluation",
+    ]);
+  });
+
+  it("returns zeros/empties for a learner with no activity in the window", () => {
+    const summary = getSessionSummary(learnerId("sess5"), Date.now());
+    expect(summary).toEqual({
+      attempts: 0,
+      correct: 0,
+      misconceptionNames: [],
+      confirmed: 0,
+      caught: 0,
+      conceptsMasteredNow: [],
+    });
   });
 });

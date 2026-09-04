@@ -42,6 +42,9 @@ export interface ConceptMasteryRow {
   /** Bayesian Knowledge Tracing estimate of P(learner knows this concept), 0-1. See bkt.ts. */
   p_mastery: number;
   mastered: number;
+  /** When `mastered` first flipped to 1 — see the comment in store.ts on why
+   * this can't just be updated_at. Null until mastered. */
+  mastered_at: number | null;
   /** Current spacing, in the learner's OWN total attempts (not calendar time) — see note above. */
   review_interval: number;
   /** This concept is due for spaced review once the learner's total attempt count reaches this. null = not yet scheduled (never mastered, or mastered before this feature existed). */
@@ -62,6 +65,9 @@ export function getConceptMastery(learnerId: string, conceptId: ConceptId): Conc
       p_mastery: row.p_mastery === undefined ? initialMastery() : row.p_mastery,
       review_interval: row.review_interval === undefined ? 0 : row.review_interval,
       due_after_attempts: row.due_after_attempts === undefined ? null : row.due_after_attempts,
+      // A row mastered before this field existed has no way to know when —
+      // treat as "always", i.e. never counted as "mastered during" any window.
+      mastered_at: row.mastered_at === undefined ? null : row.mastered_at,
     };
   }
   return {
@@ -72,6 +78,7 @@ export function getConceptMastery(learnerId: string, conceptId: ConceptId): Conc
     streak: 0,
     p_mastery: initialMastery(),
     mastered: 0,
+    mastered_at: null,
     review_interval: 0,
     due_after_attempts: null,
     updated_at: Date.now(),
@@ -325,6 +332,7 @@ export function recordAttempt(input: RecordAttemptInput): void {
     streak,
     p_mastery: pMastery,
     mastered,
+    mastered_at: justMastered ? now : current.mastered_at,
     review_interval: reviewInterval,
     due_after_attempts: dueAfterAttempts,
     updated_at: now,
@@ -718,7 +726,10 @@ export function exportLearnerData(learnerId: string): LearnerExport {
 }
 
 export interface LearnerImportData {
-  conceptMastery: Omit<ConceptMasteryRow, "learner_id">[];
+  // mastered_at is optional here specifically so a backup exported before
+  // this field existed can still be re-imported — see the matching comment
+  // on importConceptMasteryRowSchema in validation.ts.
+  conceptMastery: (Omit<ConceptMasteryRow, "learner_id" | "mastered_at"> & { mastered_at?: number | null })[];
   misconceptionEvents: Omit<MisconceptionEventRow, "id" | "learner_id">[];
   attempts: Omit<AttemptRow, "id" | "learner_id">[];
   spotMistakeAttempts?: Omit<SpotMistakeAttemptRow, "id" | "learner_id">[];
@@ -735,7 +746,7 @@ export function importLearnerData(targetLearnerId: string, data: LearnerImportDa
   s.spotMistakeAttempts = s.spotMistakeAttempts.filter((r) => r.learner_id !== targetLearnerId);
 
   for (const row of data.conceptMastery) {
-    s.conceptMastery.push({ ...row, learner_id: targetLearnerId });
+    s.conceptMastery.push({ ...row, learner_id: targetLearnerId, mastered_at: row.mastered_at ?? null });
   }
   for (const row of data.misconceptionEvents) {
     s.misconceptionEvents.push({ ...row, id: s.nextEventId++, learner_id: targetLearnerId });
@@ -785,5 +796,51 @@ export interface SpotMistakeStats {
 export function getSpotMistakeStats(learnerId: string): SpotMistakeStats {
   const rows = store.raw.spotMistakeAttempts.filter((r) => r.learner_id === learnerId);
   return { attempted: rows.length, caught: rows.filter((r) => r.correct === 1).length };
+}
+
+// ---------------------------------------------------------------------------
+// Session summary — a closing-loop moment, not a new persisted concept. "This
+// session" is defined purely client-side (sessionStorage, cleared when the tab
+// closes — see useSessionStart.ts) and passed in as a timestamp; this just
+// answers "what happened since then" from data that already exists. No new
+// storage, no new event type — every other feature here just gets windowed by
+// time after the fact.
+// ---------------------------------------------------------------------------
+
+export interface SessionSummary {
+  attempts: number;
+  correct: number;
+  /** Distinct misconceptions actually diagnosed in this window, most recent first. */
+  misconceptionNames: string[];
+  confirmed: number;
+  caught: number;
+  conceptsMasteredNow: string[];
+}
+
+export function getSessionSummary(learnerId: string, sinceTimestamp: number): SessionSummary {
+  const attempts = store.raw.attempts.filter((a) => a.learner_id === learnerId && a.created_at >= sinceTimestamp);
+  const correct = attempts.filter((a) => a.outcome === "correct").length;
+
+  const misconceptionIds = Array.from(
+    new Set(
+      attempts
+        .slice()
+        .reverse()
+        .filter((a) => a.misconception_id)
+        .map((a) => a.misconception_id as string)
+    )
+  );
+  const misconceptionNames = misconceptionIds
+    .map((id) => getMisconception(id)?.name)
+    .filter((n): n is string => Boolean(n));
+
+  const confirmed = attempts.filter((a) => a.confirmation_status === "confirmed").length;
+  const caught = attempts.filter((a) => a.confirmation_status === "caught").length;
+
+  const conceptsMasteredNow = getAllMastery(learnerId)
+    .filter((m) => m.mastered_at !== null && m.mastered_at >= sinceTimestamp)
+    .map((m) => getConcept(m.concept_id).name);
+
+  return { attempts: attempts.length, correct, misconceptionNames, confirmed, caught, conceptsMasteredNow };
 }
 

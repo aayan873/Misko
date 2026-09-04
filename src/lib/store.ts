@@ -39,6 +39,11 @@ export interface ConceptMasteryRow {
   /** Bayesian Knowledge Tracing estimate of P(learner knows this concept), 0-1. See src/lib/bkt.ts. */
   p_mastery: number;
   mastered: number;
+  /** When `mastered` first flipped to 1 — NOT the same as updated_at, which
+   * changes on every attempt including ones long after mastery (e.g. spaced
+   * review). Needed to answer "was this mastered *during* a given window,"
+   * which updated_at can't answer correctly. Null until mastered. */
+  mastered_at: number | null;
   /** Spaced-review scheduling, in the learner's own attempt count — see learnerModel.ts. */
   review_interval: number;
   due_after_attempts: number | null;
