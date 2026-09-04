@@ -23,6 +23,8 @@ const {
   getAtRiskLearners,
   getClassRoster,
   MASTERY_MIN_ATTEMPTS,
+  BASE_REVIEW_INTERVAL,
+  MAX_REVIEW_INTERVAL,
 } = await import("../src/lib/learnerModel");
 const { initialMastery, updateMastery, BKT_MASTERY_THRESHOLD } = await import("../src/lib/bkt");
 
@@ -642,5 +644,79 @@ describe("class-wide (teacher-facing) aggregation", () => {
     const entry = roster.find((r) => r.learnerId === id);
     expect(entry?.totalAttempts).toBe(2);
     expect(entry?.conceptsMastered).toBe(0);
+  });
+});
+
+describe("spaced review scheduling", () => {
+  function correctOn(id: string, conceptId: "order-of-operations" | "negative-numbers") {
+    recordAttempt({
+      learnerId: id,
+      conceptId,
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 4,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+    });
+  }
+
+  it("schedules a review only once a concept is actually mastered", () => {
+    const id = learnerId("sr1");
+    correctOn(id, "order-of-operations");
+    expect(getConceptMastery(id, "order-of-operations").due_after_attempts).toBeNull();
+  });
+
+  it("is not due immediately after mastering — needs BASE_REVIEW_INTERVAL more attempts first", () => {
+    const id = learnerId("sr2");
+    for (let i = 0; i < MASTERY_MIN_ATTEMPTS; i++) correctOn(id, "order-of-operations");
+    expect(getConceptMastery(id, "order-of-operations").mastered).toBe(1);
+    expect(decideNextProblem(id).reasonType).not.toBe("spaced-review");
+  });
+
+  it("becomes due after BASE_REVIEW_INTERVAL more attempts on other concepts, and decideNextProblem serves it ahead of frontier", () => {
+    const id = learnerId("sr3");
+    for (let i = 0; i < MASTERY_MIN_ATTEMPTS; i++) correctOn(id, "order-of-operations");
+    for (let i = 0; i < BASE_REVIEW_INTERVAL; i++) correctOn(id, "negative-numbers");
+
+    const next = decideNextProblem(id);
+    expect(next.reasonType).toBe("spaced-review");
+    expect(next.problem?.conceptId).toBe("order-of-operations");
+  });
+
+  it("answering a due review correctly doubles the interval (capped at MAX_REVIEW_INTERVAL)", () => {
+    const id = learnerId("sr4");
+    for (let i = 0; i < MASTERY_MIN_ATTEMPTS; i++) correctOn(id, "order-of-operations");
+    for (let i = 0; i < BASE_REVIEW_INTERVAL; i++) correctOn(id, "negative-numbers");
+    expect(decideNextProblem(id).reasonType).toBe("spaced-review");
+
+    correctOn(id, "order-of-operations"); // answers the due review correctly
+    const row = getConceptMastery(id, "order-of-operations");
+    expect(row.review_interval).toBe(Math.min(BASE_REVIEW_INTERVAL * 2, MAX_REVIEW_INTERVAL));
+    // Not due again immediately — the interval actually grew.
+    expect(decideNextProblem(id).reasonType).not.toBe("spaced-review");
+  });
+
+  it("answering a due review incorrectly resets the interval instead of growing it", () => {
+    const id = learnerId("sr5");
+    for (let i = 0; i < MASTERY_MIN_ATTEMPTS; i++) correctOn(id, "order-of-operations");
+    for (let i = 0; i < BASE_REVIEW_INTERVAL; i++) correctOn(id, "negative-numbers");
+    expect(decideNextProblem(id).reasonType).toBe("spaced-review");
+
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "unrecognized",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+    });
+
+    const row = getConceptMastery(id, "order-of-operations");
+    expect(row.review_interval).toBe(BASE_REVIEW_INTERVAL);
+    // Still marked mastered (sticky) even though the review was missed.
+    expect(row.mastered).toBe(1);
   });
 });

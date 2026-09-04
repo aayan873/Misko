@@ -39,6 +39,9 @@ export interface ConceptMasteryRow {
   /** Bayesian Knowledge Tracing estimate of P(learner knows this concept), 0-1. See src/lib/bkt.ts. */
   p_mastery: number;
   mastered: number;
+  /** Spaced-review scheduling, in the learner's own attempt count — see learnerModel.ts. */
+  review_interval: number;
+  due_after_attempts: number | null;
   updated_at: number;
 }
 

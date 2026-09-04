@@ -16,12 +16,13 @@ interface ClientProblem {
   answerType: "number" | "expression";
 }
 
-type ReasonType = "confirmation" | "retarget" | "review" | "frontier" | "done";
+type ReasonType = "confirmation" | "retarget" | "review" | "spaced-review" | "frontier" | "done";
 
 const REASON_BADGES: Record<ReasonType, { label: string; className: string }> = {
   confirmation: { label: "double-check", className: "border-primary text-primary" },
   retarget: { label: "retry", className: "border-danger text-danger" },
   review: { label: "review", className: "border-neutral text-neutral" },
+  "spaced-review": { label: "spaced review", className: "border-success text-success" },
   frontier: { label: "new concept", className: "border-border text-ink-faint" },
   done: { label: "", className: "" },
 };

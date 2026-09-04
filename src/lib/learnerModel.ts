@@ -14,6 +14,18 @@ export const MASTERY_MIN_ATTEMPTS = 3;
 /** Chance of serving a review problem from a weaker, previously-seen concept instead of the frontier concept (interleaving, see RESEARCH/LEARNING_SCIENCE.md #8). */
 const INTERLEAVE_PROBABILITY = 0.25;
 
+/**
+ * Spaced review of already-mastered concepts, spaced by problems-answered-since
+ * rather than calendar time — the standard spacing-effect research (see
+ * RESEARCH/LEARNING_SCIENCE.md) is normally applied with day/week intervals, which
+ * makes it real but undemoable within a single sitting. Counting *interactions*
+ * instead of days is a legitimate reading of the same effect (spacing between
+ * repetitions matters; that spacing doesn't have to be wall-clock time to work)
+ * and means this can actually be watched happening live, not just cited.
+ */
+export const BASE_REVIEW_INTERVAL = 4;
+export const MAX_REVIEW_INTERVAL = 40;
+
 export interface ConceptMasteryRow {
   learner_id: string;
   concept_id: ConceptId;
@@ -23,6 +35,10 @@ export interface ConceptMasteryRow {
   /** Bayesian Knowledge Tracing estimate of P(learner knows this concept), 0-1. See bkt.ts. */
   p_mastery: number;
   mastered: number;
+  /** Current spacing, in the learner's OWN total attempts (not calendar time) — see note above. */
+  review_interval: number;
+  /** This concept is due for spaced review once the learner's total attempt count reaches this. null = not yet scheduled (never mastered, or mastered before this feature existed). */
+  due_after_attempts: number | null;
   updated_at: number;
 }
 
@@ -30,9 +46,17 @@ export function getConceptMastery(learnerId: string, conceptId: ConceptId): Conc
   const row = store.raw.conceptMastery.find(
     (r) => r.learner_id === learnerId && r.concept_id === conceptId
   );
-  // p_mastery may be missing on a row written before BKT was added — default it
-  // rather than let a stale on-disk file produce NaN through the update math.
-  if (row) return row.p_mastery === undefined ? { ...row, p_mastery: initialMastery() } : row;
+  // Some fields may be missing on a row written before BKT / spaced review were
+  // added — default them rather than let a stale on-disk file produce NaN/undefined
+  // through the update math.
+  if (row) {
+    return {
+      ...row,
+      p_mastery: row.p_mastery === undefined ? initialMastery() : row.p_mastery,
+      review_interval: row.review_interval === undefined ? 0 : row.review_interval,
+      due_after_attempts: row.due_after_attempts === undefined ? null : row.due_after_attempts,
+    };
+  }
   return {
     learner_id: learnerId,
     concept_id: conceptId,
@@ -41,8 +65,23 @@ export function getConceptMastery(learnerId: string, conceptId: ConceptId): Conc
     streak: 0,
     p_mastery: initialMastery(),
     mastered: 0,
+    review_interval: 0,
+    due_after_attempts: null,
     updated_at: Date.now(),
   };
+}
+
+function learnerTotalAttempts(learnerId: string): number {
+  return store.raw.attempts.filter((a) => a.learner_id === learnerId).length;
+}
+
+/** The single most-overdue mastered concept, if any — see decideNextProblem. */
+function dueForReview(learnerId: string): ConceptId | null {
+  const total = learnerTotalAttempts(learnerId);
+  const due = getAllMastery(learnerId)
+    .filter((m) => m.mastered === 1 && m.due_after_attempts !== null && total >= m.due_after_attempts)
+    .sort((a, b) => (a.due_after_attempts as number) - (b.due_after_attempts as number));
+  return due[0]?.concept_id ?? null;
 }
 
 export function getAllMastery(learnerId: string): ConceptMasteryRow[] {
@@ -124,7 +163,7 @@ function weakestReviewableConcept(learnerId: string, exclude: ConceptId): Concep
 }
 
 /** Structured category for the "why this problem" reason — lets the UI give each type its own badge instead of parsing free text (see prompt.md §9 "not a black box"). */
-export type ReasonType = "confirmation" | "retarget" | "review" | "frontier" | "done";
+export type ReasonType = "confirmation" | "retarget" | "review" | "spaced-review" | "frontier" | "done";
 
 export interface NextProblemResult {
   done: boolean;
@@ -157,6 +196,19 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
       problem: generateProblemForMisconception(active.misconceptionId),
       reason: `Retargeting "${getMisconception(active.misconceptionId)?.name}" until resolved.`,
       reasonType: "retarget",
+    };
+  }
+
+  // Checked before the "all mastered" exit below, on purpose — review is exactly
+  // as relevant (more, arguably) once the curriculum is "done" as while still
+  // working through it. See dueForReview / BASE_REVIEW_INTERVAL above.
+  const due = dueForReview(learnerId);
+  if (due) {
+    return {
+      done: false,
+      problem: generateProblem(due),
+      reason: `Spaced review: making sure ${getConcept(due).name} actually stuck.`,
+      reasonType: "spaced-review",
     };
   }
 
@@ -205,6 +257,9 @@ export function recordAttempt(input: RecordAttemptInput): void {
   const s = store.raw;
 
   const diagnosisSource: DiagnosisSource = input.diagnosisSource ?? null;
+  // Captured before this attempt is pushed — "was this concept already due when
+  // this problem was served" needs the count as of serving it, not after.
+  const totalAttemptsBefore = learnerTotalAttempts(input.learnerId);
 
   s.attempts.push({
     id: s.nextAttemptId++,
@@ -234,6 +289,24 @@ export function recordAttempt(input: RecordAttemptInput): void {
       ? 1
       : 0;
 
+  // Spaced review scheduling — see BASE_REVIEW_INTERVAL's comment above for why
+  // this counts problems, not calendar time.
+  let reviewInterval = current.review_interval;
+  let dueAfterAttempts = current.due_after_attempts;
+  const justMastered = current.mastered === 0 && mastered === 1;
+  const wasDueReview =
+    current.mastered === 1 && current.due_after_attempts !== null && totalAttemptsBefore >= current.due_after_attempts;
+  if (justMastered) {
+    reviewInterval = BASE_REVIEW_INTERVAL;
+    dueAfterAttempts = totalAttemptsBefore + 1 + reviewInterval;
+  } else if (wasDueReview) {
+    // Correct: retrieval succeeded, space it out further. Wrong: forgetting
+    // caught, bring it back soon — same "growth on success, reset on miss"
+    // shape as a real spaced-repetition scheduler (SM-2/Leitner family).
+    reviewInterval = wasCorrect ? Math.min(reviewInterval * 2, MAX_REVIEW_INTERVAL) : BASE_REVIEW_INTERVAL;
+    dueAfterAttempts = totalAttemptsBefore + 1 + reviewInterval;
+  }
+
   const existingIdx = s.conceptMastery.findIndex(
     (r) => r.learner_id === input.learnerId && r.concept_id === input.conceptId
   );
@@ -245,6 +318,8 @@ export function recordAttempt(input: RecordAttemptInput): void {
     streak,
     p_mastery: pMastery,
     mastered,
+    review_interval: reviewInterval,
+    due_after_attempts: dueAfterAttempts,
     updated_at: now,
   };
   if (existingIdx >= 0) s.conceptMastery[existingIdx] = updatedRow;
