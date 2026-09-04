@@ -1,0 +1,280 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f2efe6;
+  --surface: #fffdf8;
+  --ink: #1d1b15;
+  --ink-soft: #5a5646;
+  --ink-faint: #948e78;
+  --border: #e1dccb;
+  --border-soft: #ece7d9;
+  --primary: #2c4870;
+  --primary-hover: #21395c;
+  --primary-wash: #e5eaf2;
+  --danger: #ac2620;
+  --danger-wash: #f6e3e0;
+  --success: #2f6b3f;
+  --success-wash: #e1ecdf;
+  --neutral: #5a5646;
+  --neutral-wash: #e8e2d0;
+  --shadow-card: 0 1px 2px rgba(40, 32, 10, 0.06), 0 4px 16px rgba(40, 32, 10, 0.08);
+
+  /* A fixed dark "chalkboard" band used only for the nav — a deliberate, contained
+     accent (dark header on a light page is a common, considered pattern), not a
+     full theme flip. Doesn't react to light/dark preference; it's always this. */
+  --chalk-bg: #14201b;
+  --chalk-surface: #1d2b23;
+  --chalk-ink: #f1ede0;
+  --chalk-ink-soft: #a8b3a6;
+  --chalk-border: #2b3931;
+  --chalk-accent: #e8935a;
+  --chalk-accent-wash: #33291f;
+
+  /* A faint ambient texture, math-appropriate and very low-contrast — richness
+     without rebuilding the whole page around it (that was the earlier mistake). */
+  --grid-line: #e8e2d0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171510;
+    --surface: #201d16;
+    --ink: #f1ede0;
+    --ink-soft: #b8b19a;
+    --ink-faint: #766f5a;
+    --border: #33301f;
+    --border-soft: #27241a;
+    --primary: #7f9cca;
+    --primary-hover: #95afd6;
+    --primary-wash: #24344a;
+    --danger: #e2695f;
+    --danger-wash: #3c2420;
+    --success: #7fbf8a;
+    --success-wash: #203524;
+    --neutral: #b8b19a;
+    --neutral-wash: #2b2820;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 8px rgba(0, 0, 0, 0.25);
+    --grid-line: #211e15;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #171510;
+  --surface: #201d16;
+  --ink: #f1ede0;
+  --ink-soft: #b8b19a;
+  --ink-faint: #766f5a;
+  --border: #33301f;
+  --border-soft: #27241a;
+  --primary: #7f9cca;
+  --primary-hover: #95afd6;
+  --primary-wash: #24344a;
+  --danger: #e2695f;
+  --danger-wash: #3c2420;
+  --success: #7fbf8a;
+  --success-wash: #203524;
+  --neutral: #b8b19a;
+  --neutral-wash: #2b2820;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 8px rgba(0, 0, 0, 0.25);
+  --grid-line: #211e15;
+}
+
+body {
+  color: var(--ink);
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer components {
+  /* ---------- surfaces ---------- */
+  /* A standard SaaS card: bordered, subtly shadowed, rounded — the ordinary,
+     immediately-recognizable "this is a software product" container. Colors are
+     warm (paper-toned bg, ink-blue primary) — the distinctive part of the earlier
+     worksheet identity — but the STRUCTURE stays conventional app chrome: real
+     cards, real buttons, standard status icons. See git history for the two
+     failed extremes this splits the difference between (no cards at all with
+     hand-drawn marks vs. a generic cool-grey SaaS palette). */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .section-title {
+    font-family: var(--font-display), serif;
+    font-weight: 600;
+    font-size: 21px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-body), sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+
+  /* ---------- buttons ---------- */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: #fff;
+    border-radius: 10px;
+    padding: 0.68rem 1.3rem;
+    font-family: var(--font-body), sans-serif;
+    font-weight: 500;
+    font-size: 14.5px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .btn-primary:hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+  }
+  .btn-primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 0.68rem 1.3rem;
+    font-family: var(--font-body), sans-serif;
+    font-weight: 500;
+    font-size: 14.5px;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  .btn-secondary:hover {
+    border-color: var(--ink-faint);
+    background: var(--border-soft);
+  }
+
+  /* ---------- feedback callouts ---------- */
+  /* A standard status callout: icon in a tinted circle + heading + body, inside
+     a card. This is the ordinary, recognizable pattern for "here's the result of
+     an action" (alerts, toasts, form validation) — not a novelty. */
+  .callout {
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .callout.success {
+    background: var(--success-wash);
+    border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  }
+  .callout.danger {
+    background: var(--danger-wash);
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  }
+  .status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    flex: none;
+  }
+  .status-icon.success {
+    background: var(--success);
+  }
+  .status-icon.danger {
+    background: var(--danger);
+  }
+  .status-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* ---------- reasoning trace ---------- */
+  .trace-mk {
+    flex: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--success-wash);
+    color: var(--success);
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    margin-top: 1px;
+  }
+  .trace-mk.pending {
+    background: transparent;
+    border: 1.5px solid var(--primary);
+  }
+
+  /* ---------- mastery ring ---------- */
+  .stamp-ring {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--ink-soft);
+    background: var(--surface);
+  }
+  .stamp-ring.done {
+    border-color: var(--success);
+    color: var(--success);
+  }
+  .stamp-ring.progress {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .stamp-mini {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-body), sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    flex: none;
+  }
+}

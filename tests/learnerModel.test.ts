@@ -1,0 +1,417 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import os from "os";
+import path from "path";
+import fs from "fs";
+
+// Isolate the store from real dev data before importing anything that touches it.
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "misko-test-"));
+process.env.MISKO_DATA_DIR = tmpDir;
+
+const { store } = await import("../src/lib/store");
+const {
+  decideNextProblem,
+  recordAttempt,
+  frontierConcept,
+  getConceptMastery,
+  pendingConfirmation,
+  resolvePendingConfirmation,
+  getConfirmationStats,
+  lastMisconceptionOnConcept,
+  getMisconceptionHistory,
+  MASTERY_STREAK,
+  MASTERY_MIN_ATTEMPTS,
+} = await import("../src/lib/learnerModel");
+
+function learnerId(name: string) {
+  return name; // ids don't need to be real UUIDs for internal store tests
+}
+
+beforeEach(() => {
+  store._resetForTests();
+});
+
+describe("mastery gate", () => {
+  it("does not mark a concept mastered before the streak/attempt thresholds are met", () => {
+    const id = learnerId("l1");
+    for (let i = 0; i < MASTERY_STREAK - 1; i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "order-of-operations",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "x",
+        learnerAnswer: "x",
+      });
+    }
+    expect(getConceptMastery(id, "order-of-operations").mastered).toBe(0);
+  });
+
+  it("marks a concept mastered after MASTERY_STREAK consecutive correct answers (min attempts met)", () => {
+    const id = learnerId("l2");
+    for (let i = 0; i < Math.max(MASTERY_STREAK, MASTERY_MIN_ATTEMPTS); i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "order-of-operations",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "x",
+        learnerAnswer: "x",
+      });
+    }
+    expect(getConceptMastery(id, "order-of-operations").mastered).toBe(1);
+  });
+
+  it("resets the streak on a wrong answer", () => {
+    const id = learnerId("l3");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "x",
+    });
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+    });
+    expect(getConceptMastery(id, "order-of-operations").streak).toBe(0);
+  });
+
+  it("does not advance the frontier concept until prerequisites are mastered", () => {
+    const id = learnerId("l4");
+    expect(frontierConcept(id)).toBe("order-of-operations");
+    for (let i = 0; i < Math.max(MASTERY_STREAK, MASTERY_MIN_ATTEMPTS); i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "order-of-operations",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "x",
+        learnerAnswer: "x",
+      });
+    }
+    expect(frontierConcept(id)).toBe("negative-numbers");
+  });
+
+  it("re-targets an unresolved misconception on the next problem instead of moving on", () => {
+    const id = learnerId("l5");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "negative-numbers",
+      misconceptionId: "NEG_MULT_SIGN",
+      outcome: "matched_misconception",
+      confidenceBefore: 2,
+      hintLevelUsed: 1,
+      problemPrompt: "(-3) x (-4)",
+      learnerAnswer: "-12",
+    });
+    const next = decideNextProblem(id);
+    expect(next.done).toBe(false);
+    expect(next.problem?.targetMisconceptionId).toBe("NEG_MULT_SIGN");
+    expect(next.reason.length).toBeGreaterThan(0);
+  });
+
+  it("resolves an open misconception event once the learner answers that concept correctly again", () => {
+    const id = learnerId("l6");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "negative-numbers",
+      misconceptionId: "NEG_MULT_SIGN",
+      outcome: "matched_misconception",
+      confidenceBefore: 2,
+      hintLevelUsed: 1,
+      problemPrompt: "(-3) x (-4)",
+      learnerAnswer: "-12",
+    });
+    expect(decideNextProblem(id).problem?.targetMisconceptionId).toBe("NEG_MULT_SIGN");
+
+    recordAttempt({
+      learnerId: id,
+      conceptId: "negative-numbers",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "(-3) x (-4)",
+      learnerAnswer: "12",
+    });
+    // No longer retargeted — should fall through to frontier/interleave logic.
+    // (Not asserting on which misconception the resulting problem happens to target:
+    // generateProblem() picks randomly among a concept's generators, so it could
+    // coincidentally re-pick NEG_MULT_SIGN by chance even when not being retargeted.
+    // The actual behavior under test is the *reason*, not the random problem content.)
+    const next = decideNextProblem(id);
+    expect(next.reason).not.toContain("Retargeting");
+  });
+});
+
+describe("catching the Correct Answer Trap (pending confirmation)", () => {
+  it("has no pending confirmation for a learner with no history", () => {
+    const id = learnerId("trap1");
+    expect(pendingConfirmation(id)).toBeNull();
+  });
+
+  it("a correct answer with confirmationStatus 'pending' surfaces as a pending confirmation", () => {
+    const id = learnerId("trap2");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "combining-like-terms",
+      misconceptionId: "CLT_EXPONENT_ADD",
+      outcome: "correct",
+      confidenceBefore: 4,
+      hintLevelUsed: 1,
+      problemPrompt: "4x^2 + 3x^2",
+      learnerAnswer: "7x^2",
+      confirmationStatus: "pending",
+    });
+    const pending = pendingConfirmation(id);
+    expect(pending).not.toBeNull();
+    expect(pending?.conceptId).toBe("combining-like-terms");
+    expect(pending?.problemPrompt).toBe("4x^2 + 3x^2");
+  });
+
+  it("decideNextProblem prioritizes a pending confirmation over the frontier concept", () => {
+    const id = learnerId("trap3");
+    // Give the learner an unrelated open misconception too — pending confirmation
+    // should still win over even the "active misconception" retargeting tier.
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 2,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+    });
+    recordAttempt({
+      learnerId: id,
+      conceptId: "combining-like-terms",
+      misconceptionId: "CLT_EXPONENT_ADD",
+      outcome: "correct",
+      confidenceBefore: 4,
+      hintLevelUsed: 1,
+      problemPrompt: "4x^2 + 3x^2",
+      learnerAnswer: "7x^2",
+      confirmationStatus: "pending",
+    });
+
+    const next = decideNextProblem(id);
+    expect(next.reason).toContain("Double-checking");
+    expect(next.reasonType).toBe("confirmation");
+    expect(next.problem?.targetMisconceptionId).toBe("CLT_EXPONENT_ADD");
+  });
+
+  it("resolvePendingConfirmation('confirmed') clears the pending state and counts toward stats", () => {
+    const id = learnerId("trap4");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "combining-like-terms",
+      misconceptionId: "CLT_EXPONENT_ADD",
+      outcome: "correct",
+      confidenceBefore: 4,
+      hintLevelUsed: 1,
+      problemPrompt: "4x^2 + 3x^2",
+      learnerAnswer: "7x^2",
+      confirmationStatus: "pending",
+    });
+    expect(pendingConfirmation(id)).not.toBeNull();
+
+    resolvePendingConfirmation(id, "confirmed");
+
+    expect(pendingConfirmation(id)).toBeNull();
+    const stats = getConfirmationStats(id);
+    expect(stats).toEqual({ confirmed: 1, caught: 0, checked: 1 });
+  });
+
+  it("resolvePendingConfirmation('caught') clears the pending state and counts toward stats", () => {
+    const id = learnerId("trap5");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "combining-like-terms",
+      misconceptionId: "CLT_EXPONENT_ADD",
+      outcome: "correct",
+      confidenceBefore: 4,
+      hintLevelUsed: 1,
+      problemPrompt: "4x^2 + 3x^2",
+      learnerAnswer: "7x^2",
+      confirmationStatus: "pending",
+    });
+
+    resolvePendingConfirmation(id, "caught");
+
+    expect(pendingConfirmation(id)).toBeNull();
+    const stats = getConfirmationStats(id);
+    expect(stats).toEqual({ confirmed: 0, caught: 1, checked: 1 });
+  });
+
+  it("resolvePendingConfirmation is a no-op when nothing is pending", () => {
+    const id = learnerId("trap6");
+    expect(() => resolvePendingConfirmation(id, "confirmed")).not.toThrow();
+    expect(getConfirmationStats(id)).toEqual({ confirmed: 0, caught: 0, checked: 0 });
+  });
+});
+
+describe("lastMisconceptionOnConcept (deterministic confirmation trigger, no AI required)", () => {
+  it("returns null for a learner with no history on the concept", () => {
+    const id = learnerId("trigger1");
+    expect(lastMisconceptionOnConcept(id, "order-of-operations")).toBeNull();
+  });
+
+  it("returns the misconception id when the most recent attempt on the concept matched one", () => {
+    const id = learnerId("trigger2");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "8 + 5 x 9",
+      learnerAnswer: "117",
+    });
+    expect(lastMisconceptionOnConcept(id, "order-of-operations")).toBe("ORDER_LEFT_TO_RIGHT");
+  });
+
+  it("returns null once a later correct attempt on the concept supersedes the slip", () => {
+    const id = learnerId("trigger3");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "8 + 5 x 9",
+      learnerAnswer: "117",
+    });
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 4,
+      hintLevelUsed: 1,
+      problemPrompt: "6 + 7 x 9",
+      learnerAnswer: "69",
+    });
+    // The most recent attempt is now the correct one — no fresh slip to double-check.
+    expect(lastMisconceptionOnConcept(id, "order-of-operations")).toBeNull();
+  });
+
+  it("is scoped per concept — a slip on one concept doesn't trigger on another", () => {
+    const id = learnerId("trigger4");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "8 + 5 x 9",
+      learnerAnswer: "117",
+    });
+    expect(lastMisconceptionOnConcept(id, "combining-like-terms")).toBeNull();
+  });
+
+  it("returns null when the most recent attempt was unrecognized (no specific misconception matched)", () => {
+    const id = learnerId("trigger5");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "unrecognized",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "8 + 5 x 9",
+      learnerAnswer: "42",
+    });
+    expect(lastMisconceptionOnConcept(id, "order-of-operations")).toBeNull();
+  });
+});
+
+describe("getMisconceptionHistory", () => {
+  it("groups repeated occurrences of the same misconception and counts them", () => {
+    const id = learnerId("hist1");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "a",
+      learnerAnswer: "x",
+      diagnosisSource: "rule",
+    });
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "b",
+      learnerAnswer: "y",
+      diagnosisSource: "ai",
+    });
+
+    const history = getMisconceptionHistory(id);
+    expect(history).toHaveLength(1);
+    expect(history[0].occurrences).toBe(2);
+    // The most recent occurrence's diagnosis_source wins, not the first.
+    expect(history[0].diagnosis_source).toBe("ai");
+  });
+
+  it("orders distinct misconceptions by recency even when timestamps tie (uses event id, not created_at)", () => {
+    const id = learnerId("hist2");
+    // Two back-to-back synchronous calls can share the same Date.now() millisecond
+    // — this is exactly the race that made "most recent" ambiguous before the fix.
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "a",
+      learnerAnswer: "x",
+    });
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_EXPONENT_LAST",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "b",
+      learnerAnswer: "y",
+    });
+
+    const history = getMisconceptionHistory(id);
+    expect(history).toHaveLength(2);
+    // ORDER_EXPONENT_LAST was recorded second, so it must sort first regardless
+    // of whether its timestamp actually differs from the first event's.
+    expect(history[0].misconception_id).toBe("ORDER_EXPONENT_LAST");
+    expect(history[1].misconception_id).toBe("ORDER_LEFT_TO_RIGHT");
+  });
+
+  it("returns an empty array for a learner with no misconception history", () => {
+    expect(getMisconceptionHistory(learnerId("hist3"))).toEqual([]);
+  });
+});
