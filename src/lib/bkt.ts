@@ -3,7 +3,8 @@
  * with a real probabilistic estimate of P(learner knows this concept), updated after
  * every attempt via Bayes' rule. Standard technique from Corbett & Anderson (1994);
  * parameters below are fixed literature-typical defaults, not fit to data (there
- * isn't any real usage data yet — see ARCHITECTURE.md "Future work").
+ * isn't any real usage data yet — see EVALUATION.md for measured mastery-gate
+ * behavior at fixed simulated accuracy rates, and ARCHITECTURE.md "Future work").
  */
 
 export interface BKTParams {

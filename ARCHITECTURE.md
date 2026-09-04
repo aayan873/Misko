@@ -115,7 +115,10 @@ Things that are real limitations right now, not oversights hiding as design:
   to fit them against yet. Same caveat applies to the TF-IDF similarity
   threshold: it's tuned against a handful of stress-tested examples, not a
   labeled dataset. Both would benefit from real logged attempts once this has
-  actual users.
+  actual users. See EVALUATION.md for what's actually been measured in the
+  absence of that (simulated mastery-gate behavior, deterministic properties
+  verified by the test suite) versus what's an open question until real users
+  exist.
 - **Single-instance storage.** `src/lib/store.ts` (JSON file) and
   `src/lib/problemCache.ts` / `src/lib/spotMistakeCache.ts` (in-memory maps) all
   assume one long-running process. Fine for `npm run dev`/`npm start`, not for a
