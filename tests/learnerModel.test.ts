@@ -18,6 +18,7 @@ const {
   getConfirmationStats,
   lastMisconceptionOnConcept,
   getMisconceptionHistory,
+  getCalibrationInsight,
   MASTERY_MIN_ATTEMPTS,
 } = await import("../src/lib/learnerModel");
 const { initialMastery, updateMastery, BKT_MASTERY_THRESHOLD } = await import("../src/lib/bkt");
@@ -461,5 +462,60 @@ describe("getMisconceptionHistory", () => {
 
   it("returns an empty array for a learner with no misconception history", () => {
     expect(getMisconceptionHistory(learnerId("hist3"))).toEqual([]);
+  });
+});
+
+describe("getCalibrationInsight", () => {
+  function record(id: string, confidenceBefore: number, correct: boolean) {
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: correct ? "correct" : "unrecognized",
+      confidenceBefore,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+    });
+  }
+
+  it("returns null with no history", () => {
+    expect(getCalibrationInsight(learnerId("cal1"))).toBeNull();
+  });
+
+  it("returns null below the minimum sample size even if every high-confidence answer is wrong", () => {
+    const id = learnerId("cal2");
+    for (let i = 0; i < 4; i++) record(id, 5, false);
+    expect(getCalibrationInsight(id)).toBeNull();
+  });
+
+  it("flags overconfident: high confidence, mostly wrong, enough samples", () => {
+    const id = learnerId("cal3");
+    for (let i = 0; i < 4; i++) record(id, 5, false);
+    record(id, 4, true);
+    const insight = getCalibrationInsight(id);
+    expect(insight).not.toBeNull();
+    expect(insight?.type).toBe("overconfident");
+    expect(insight?.count).toBe(5);
+    expect(insight?.accuracy).toBeCloseTo(0.2);
+  });
+
+  it("flags underconfident: low confidence, mostly right, enough samples", () => {
+    const id = learnerId("cal4");
+    for (let i = 0; i < 5; i++) record(id, 1, true);
+    const insight = getCalibrationInsight(id);
+    expect(insight).not.toBeNull();
+    expect(insight?.type).toBe("underconfident");
+    expect(insight?.count).toBe(5);
+    expect(insight?.accuracy).toBe(1);
+  });
+
+  it("returns null for a well-calibrated learner", () => {
+    const id = learnerId("cal5");
+    for (let i = 0; i < 3; i++) record(id, 5, true);
+    for (let i = 0; i < 2; i++) record(id, 5, false);
+    for (let i = 0; i < 3; i++) record(id, 1, false);
+    for (let i = 0; i < 2; i++) record(id, 1, true);
+    expect(getCalibrationInsight(id)).toBeNull();
   });
 });

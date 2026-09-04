@@ -4,6 +4,7 @@ import { getMisconception } from "@/lib/domain/misconceptions";
 import {
   getAllMastery,
   getCalibration,
+  getCalibrationInsight,
   getMisconceptionHistory,
   frontierConcept,
   getConfirmationStats,
@@ -53,11 +54,13 @@ export async function GET(req: NextRequest) {
   }));
 
   const calibration = getCalibration(learnerId);
+  const calibrationInsight = getCalibrationInsight(learnerId);
 
   return NextResponse.json({
     mastery,
     misconceptionHistory,
     calibration,
+    calibrationInsight,
     frontierConcept: frontierConcept(learnerId),
     confirmationStats: getConfirmationStats(learnerId),
   });

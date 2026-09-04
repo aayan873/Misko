@@ -28,10 +28,17 @@ interface ConfirmationStats {
   checked: number;
 }
 
+interface CalibrationInsight {
+  type: "overconfident" | "underconfident";
+  accuracy: number;
+  count: number;
+}
+
 interface LearnerState {
   mastery: MasteryEntry[];
   misconceptionHistory: MisconceptionEntry[];
   calibration: CalibrationPoint[];
+  calibrationInsight: CalibrationInsight | null;
   frontierConcept: string | null;
   confirmationStats: ConfirmationStats;
 }
@@ -170,6 +177,32 @@ export default function DashboardPage() {
           Predicted confidence (1–5) vs. actual accuracy. A well-calibrated learner sees this
           trend upward and to the right.
         </p>
+        {state.calibrationInsight && (
+          <div className={`callout ${state.calibrationInsight.type === "overconfident" ? "danger" : "success"} mb-5`}>
+            <p className="text-[14px] leading-relaxed text-ink-soft">
+              {state.calibrationInsight.type === "overconfident" ? (
+                <>
+                  You&apos;ve rated yourself confident on the last {state.calibrationInsight.count} of
+                  these, but only got{" "}
+                  <span className="font-semibold text-ink">
+                    {Math.round(state.calibrationInsight.accuracy * 100)}%
+                  </span>{" "}
+                  right. Worth double-checking your steps before submitting, even when it feels
+                  obvious.
+                </>
+              ) : (
+                <>
+                  You&apos;ve rated yourself unsure on the last {state.calibrationInsight.count} of
+                  these, but got{" "}
+                  <span className="font-semibold text-ink">
+                    {Math.round(state.calibrationInsight.accuracy * 100)}%
+                  </span>{" "}
+                  right anyway. You know this better than you think.
+                </>
+              )}
+            </p>
+          </div>
+        )}
         {state.calibration.length === 0 ? (
           <p className="text-[14px] text-ink-faint">Not enough data yet.</p>
         ) : (

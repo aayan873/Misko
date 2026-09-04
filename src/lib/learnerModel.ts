@@ -401,3 +401,50 @@ export function getCalibration(learnerId: string): CalibrationPoint[] {
     }));
 }
 
+export type CalibrationInsightType = "overconfident" | "underconfident";
+
+export interface CalibrationInsight {
+  type: CalibrationInsightType;
+  /** Accuracy across the pooled attempts this insight is based on. */
+  accuracy: number;
+  count: number;
+}
+
+const CALIBRATION_MIN_SAMPLE = 5;
+const OVERCONFIDENT_ACCURACY_CEILING = 0.5;
+const UNDERCONFIDENT_ACCURACY_FLOOR = 0.85;
+
+/**
+ * getCalibration above produces the data for a chart, but nothing acts on it —
+ * this turns it into an actual signal. Pools high-confidence (4-5) and
+ * low-confidence (1-2) attempts separately (not per-level, so there's enough
+ * sample size to say something meaningful) and flags a specific, well-documented
+ * miscalibration pattern: consistently confident-but-wrong, or consistently
+ * unsure-but-right. See RESEARCH/LEARNING_SCIENCE.md #10. Overconfidence is
+ * checked first — unearned confidence skipping a double-check is the more
+ * consequential failure mode of the two.
+ */
+export function getCalibrationInsight(learnerId: string): CalibrationInsight | null {
+  const attempts = store.raw.attempts.filter((a) => a.learner_id === learnerId);
+
+  const highConfidence = attempts.filter((a) => a.confidence_before >= 4);
+  if (highConfidence.length >= CALIBRATION_MIN_SAMPLE) {
+    const correct = highConfidence.filter((a) => a.outcome === "correct").length;
+    const accuracy = correct / highConfidence.length;
+    if (accuracy < OVERCONFIDENT_ACCURACY_CEILING) {
+      return { type: "overconfident", accuracy, count: highConfidence.length };
+    }
+  }
+
+  const lowConfidence = attempts.filter((a) => a.confidence_before <= 2);
+  if (lowConfidence.length >= CALIBRATION_MIN_SAMPLE) {
+    const correct = lowConfidence.filter((a) => a.outcome === "correct").length;
+    const accuracy = correct / lowConfidence.length;
+    if (accuracy > UNDERCONFIDENT_ACCURACY_FLOOR) {
+      return { type: "underconfident", accuracy, count: lowConfidence.length };
+    }
+  }
+
+  return null;
+}
+
