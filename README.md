@@ -1,117 +1,92 @@
 # Misko
 
-**Most AI tutors trust a right answer. Misko checks if you earned it.**
+Most AI tutors just check if your answer is right. Misko checks whether you actually
+understood the problem or got lucky.
 
-Built for the [Prom Virgo Challenge](https://virgo.devpost.com) (Prometheus Virgo
-Challenge) — an AI/ML educational tool hackathon.
+Built for the [Prom Virgo Challenge](https://virgo.devpost.com), an AI/ML education
+hackathon.
+
+Live demo: https://misko-theta.vercel.app
+
+Note on the live demo: it's a UI preview, not the full app. It has no Gemini API key
+set, so all hints/diagnoses come from the fallback templates instead of live AI text.
+It also runs on Vercel's serverless functions, and the app's JSON-file storage needs one
+persistent process to work, so nothing you do actually gets saved there — mastery
+tracking, misconception history, and the confirmation mechanic below won't do anything
+on this deployment. Run it locally (see Setup) for the real thing.
 
 ## The problem
 
-You can get the right answer on a math problem by luck, a half-remembered trick, or
-genuine understanding — and a normal quiz can't tell the difference. Most AI tutoring
-products (Khanmigo, Quizlet's Q-Chat, generic ChatGPT wrappers) only check *whether* an
-answer is correct; if it is, they move on and trust it. 2025-26 research (the "Correct
-Answer Trap") shows this is a real, current, unsolved gap — even sophisticated AI tutors
-systematically miss flawed reasoning hiding behind a correct final number.
+You can get a math problem right by luck, a half-remembered trick, or actually
+understanding it, and a normal quiz can't tell those apart. Most AI tutors (Khanmigo,
+Quizlet's Q-Chat, plain ChatGPT wrappers) only check if the final answer is correct —
+if it is, they move on. Recent research calls this the "Correct Answer Trap": even
+sophisticated AI tutors miss flawed reasoning hiding behind a right number.
 
-## The solution
+## What it does
 
-Misko is an Algebra I practice tutor that:
+- **Catches lucky guesses.** If a correct answer's reasoning looks shaky, Misko quietly
+  gives you a follow-up problem of the same type. Get it wrong too, and it tells you the
+  first one might not have been solid. Get it right, and nothing is said — it never
+  accuses you off a single guess, only after a second, independently-graded problem
+  confirms it. The dashboard tracks this as a headline stat: N/M answers confirmed
+  solid.
+- **Diagnoses the specific misconception** behind a wrong answer (e.g. "you applied
+  left-to-right evaluation instead of operator precedence"), not just that it's wrong —
+  matched against a taxonomy of 15 misconceptions across 5 Algebra I concepts.
+- **Never gives away the answer.** Wrong answers get a Socratic hint (three escalating
+  levels) aimed at the specific misconception, not the solution.
+- **Gates progress on actual mastery**, not just completing problems — you need a
+  streak of correct answers before moving to the next concept.
+- **Tracks confidence calibration.** You predict your confidence before answering, and
+  the dashboard shows where that diverges from your actual accuracy.
+- **Classifies freeform reasoning.** If your wrong answer doesn't match a known
+  mistake pattern, you can write out how you solved it and Gemini classifies the
+  misconception from your explanation instead of just the final number.
+- **`/compare` proves the personalization is real.** It seeds two learners with
+  different histories, has both submit the same wrong answer to the same problem
+  through the real backend, and shows their diagnoses come out different.
 
-1. **Catches lucky guesses.** When a correct answer's reasoning looks shaky, Misko
-   silently queues a follow-up problem of the same type — if you get that one wrong too,
-   *now* it says something: "that first correct answer might not have been solid." If
-   you get it right, nothing is ever said — no false accusations, ever. The detection is
-   built to never trust a single AI judgment: a hypothesis only ever queues a real,
-   deterministically-graded follow-up problem, never an accusation on its own. The
-   dashboard tracks this as a headline stat: **N / M answers confirmed solid**.
-2. **Classifies the specific misconception** behind a wrong answer (e.g. "you applied
-   strict left-to-right evaluation instead of operator precedence"), not just that it's
-   wrong — matched against a curated taxonomy of 15 well-documented misconceptions
-   across 5 concepts.
-3. **Never states the answer.** A Gemini-powered Socratic hint ladder (3 escalating
-   levels) targets the diagnosed misconception with questions, not answers.
-4. **Gates progression on real mastery**, not completion — you can't move to the next
-   concept until a retrieval-based streak shows you've actually got it (Bloom's 2-sigma
-   mastery learning, applied).
-5. **Tracks confidence calibration** — you predict your confidence before answering, and
-   the dashboard shows where your confidence and actual accuracy diverge.
-6. **Makes the learner model visible.** The dashboard isn't a vanity page — it's the
-   actual state driving every decision the tutor makes next.
-7. **Classifies freeform reasoning, not just final answers.** If your wrong answer
-   doesn't match a known distractor, you can optionally write out how you solved it —
-   Gemini then classifies the misconception from your own explanation against the full
-   taxonomy, genuine reasoning over unstructured input, not just phrasing a
-   precomputed result.
-8. **Proves the personalization claim live, not just in a demo video.** `/compare`
-   seeds two real learner profiles with different histories, has both submit the exact
-   same wrong answer to the exact same problem through the real backend, and shows
-   their diagnoses diverge — click it yourself instead of taking our word for it.
+## Who it's for
 
-## Target users
-
-High-school and early college students learning Algebra I fundamentals (order of
+High school / early college students learning Algebra I fundamentals: order of
 operations, negative numbers, the distributive property, combining like terms, solving
-linear equations) — deliberately narrow rather than "students in general."
+linear equations. Narrow on purpose rather than trying to cover everything.
 
-## How it works (architecture)
+## How AI is used
 
-```
-Learner → confidence prediction → Problem Engine (deterministic)
-        → Answer Analyzer (deterministic: correct / matches known misconception / unrecognized)
-        → [if unrecognized + shown work given] Gemini Freeform Classifier
-          (real reasoning over the learner's own explanation; no fallback — honestly
-          skipped if AI is unavailable)
-        → [if CORRECT + shown work given] Gemini Reasoning Check
-          (soft, silent hypothesis only — never shown to the learner; queues a real
-          follow-up problem that either confirms it silently or, only if the learner
-          also misses THAT one, surfaces "that might have been a lucky guess")
-        → Gemini Diagnosis Layer (natural-language diagnosis + Socratic hint;
-          falls back to a deterministic template if no API key / API failure —
-          the template still varies by the learner's own history)
-        → Learner Model (JSON-file store: mastery, misconceptions, calibration,
-          confirmed-vs-caught correct-answer stats)
-        → Mastery Gate (decides: resolve a pending confirmation / retarget misconception
-          / interleave review / advance)
-        → Dashboard (the learner model, made visible — headline stat: "N/M confirmed
-          solid") · /compare (the personalization claim, made live and clickable with
-          two seeded, distinct learners)
-```
+Problem generation and answer-checking are plain deterministic code — every problem has
+a known-correct answer and a known set of wrong answers mapped to specific
+misconceptions (`src/lib/domain/problemEngine.ts`, `src/lib/analyzer.ts`). Gemini is
+only used for the parts that need actual language understanding: turning a diagnosed
+misconception into a natural hint, classifying freeform written reasoning, and raising a
+soft "this correct answer might be shaky" hypothesis that's always double-checked with a
+real graded problem before anything is shown to the learner. It never invents whether an
+answer is right.
 
-**Why the AI matters, concretely:** math correctness is never delegated to the LLM —
-every problem is generated with a known-correct answer and known "if you got this wrong
-value, here's the misconception that produced it" mapping, entirely in deterministic
-TypeScript (`src/lib/domain/problemEngine.ts`, `src/lib/analyzer.ts`). The
-LLM's job is strictly what only an LLM can do well: turning a classified misconception
-into personalized, natural Socratic language that adapts to the learner's recent
-history, under a hard rule to never leak the answer.
+## Tech
 
-## Technology
-
-- **Frontend + backend:** Next.js 14 (App Router), TypeScript, Tailwind CSS — one
-  deployable app, API routes double as the backend.
-- **AI:** Google Gemini API (`gemini-1.5-flash` by default).
-- **Persistence:** a dependency-free JSON file store — `better-sqlite3`'s native binding
-  segfaulted in testing on this environment's Node 18, a real portability risk, so a
-  zero-native-dependency store was chosen instead.
-- **Validation:** Zod on every API route input.
-- **Tests:** Vitest — 65 tests covering the deterministic core, mastery gate (including
-  the Correct-Answer-Trap confirmation mechanism), AI fallback behavior, and input
-  validation (`tests/`).
+- Next.js 14 (App Router), TypeScript, Tailwind CSS — one app, API routes as the backend
+- Google Gemini API (`gemini-1.5-flash` by default)
+- A plain JSON file as the datastore (`better-sqlite3`'s native binding kept segfaulting
+  on this machine's Node 18, so this avoided that entirely)
+- Zod for input validation on every API route
+- Vitest, 65 tests covering the deterministic core, mastery gate, AI fallback behavior,
+  and input validation
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env
-# Add your Gemini API key to .env (get one at https://aistudio.google.com/apikey)
-# The app runs fully without a key too — it falls back to deterministic hint templates.
+# add your Gemini API key to .env (get one at https://aistudio.google.com/apikey)
+# not required — the app works without one, just with template hints instead of Gemini
 npm run dev
 ```
 
 Visit `http://localhost:3000`.
 
-### Run tests
+### Tests
 
 ```bash
 npm test
@@ -119,56 +94,44 @@ npm test
 
 ## Usage
 
-1. Visit `/practice`. A problem appears for your current frontier concept.
-2. Predict your confidence (1–5), then answer.
-3. If wrong, you get a diagnosis tied to the specific misconception your answer implies
-   (or a general nudge if it's an unrecognized error) — never the answer itself. Try
-   again with an escalating hint, or after 3 attempts the answer is revealed and you
-   move on.
-4. If correct, you get specific positive feedback and the next problem — either the
-   next frontier concept, a review of a weaker past concept (interleaving), a retry of
-   an unresolved misconception, or — if you wrote out your reasoning and it looked
-   shaky — a silent confirmation-round problem of the same type. Nothing is said unless
-   you also miss that one; if you do, Misko tells you the earlier correct answer might
-   have been a lucky guess.
-5. Visit `/dashboard` any time to see your actual learner model: the headline
-   confirmed-vs-caught stat, mastery per concept, misconception history, and confidence
-   calibration.
+1. Go to `/practice`. You'll get a problem for your current concept.
+2. Predict your confidence (1-5), then answer.
+3. Wrong answers get a diagnosis tied to the specific mistake, never the correct answer.
+   You get an escalating hint each retry; after 3 attempts the answer is revealed.
+4. Correct answers get positive feedback and move you on — next concept, a review of a
+   weaker one, another shot at something you got wrong before, or (if you wrote out your
+   reasoning and it looked off) a quiet follow-up problem to double-check it.
+5. `/dashboard` shows your actual state: confirmed-vs-caught stat, mastery per concept,
+   misconception history, confidence calibration.
 
-## Limitations (honest, not hidden)
+## Limitations
 
-- **No browser-rendered UI screenshots yet.** This was built in a sandboxed environment
-  without a working headless-browser tool — the UI should be manually smoke-tested in a
-  real browser before a demo is recorded.
-- **Freeform misconception classification only activates when the learner opts in**
-  (writes out their work) and the deterministic match already failed — most
-  interactions still go through the faster rule-based match, a deliberate reliability
-  tradeoff for a math tool. Diagnosing reasoning with *no* freeform hint at all remains
-  open future work.
-- **The Correct-Answer-Trap catch also only activates when the learner opts in** (same
-  shown-work requirement), and the underlying published detection technique is
-  genuinely weak on its own (~70-84% recall per arXiv 2606.23205, 2605.23925) — which is exactly
-  why Misko never acts on that first AI judgment alone; it's a soft hypothesis that a
-  real, deterministically-graded follow-up problem has to independently confirm before
-  anything is ever shown to the learner. This makes false positives rare by
-  construction, but it also means the catch rate is conservative — it will miss shaky
-  reasoning more often than it flags it, which is the correct tradeoff for a learning
-  tool but worth being upfront about.
-- **JSON-file persistence, single-process problem cache.** Fine for a hackathon-scale,
-  single-instance deployment; would need a real datastore for multi-instance production
-  use.
-- **5 concepts, 15 misconceptions.** Deliberately narrow scope (Algebra I fundamentals)
-  rather than broad subject coverage.
-- **No real student usage data.**
+- No screenshots of the UI yet — should be manually checked in a real browser before
+  recording a demo.
+- Freeform reasoning classification only kicks in if you write out your work and the
+  answer didn't already match a known mistake pattern.
+- The lucky-guess check also needs written reasoning to trigger from Gemini, though a
+  separate rule-based trigger covers the common case (wrong answer immediately followed
+  by a correct one on the same concept) without needing AI at all. Either way, the
+  underlying detection technique is weak on its own (~70-84% recall per arXiv
+  2606.23205, 2605.23925), which is why nothing is ever shown to the learner off a
+  single AI judgment — it always needs a second, independently graded problem to
+  confirm. That makes the catch rate conservative: it'll miss more shaky reasoning than
+  it flags, which felt like the right tradeoff for something meant to teach, not accuse.
+- The JSON-file store needs one long-running process. Works fine with `npm run dev` /
+  `npm start`, does not work on serverless hosts like Vercel (see the live demo note
+  above) — would need a real database there.
+- 5 concepts, 15 misconceptions. Narrow scope on purpose, not full subject coverage.
+- No real student usage data behind any of this yet.
 
-## Repository structure
+## Structure
 
 ```
-src/lib/domain/            concepts, misconceptions, problem engine (deterministic core)
+src/lib/domain/            concepts, misconceptions, problem engine
 src/lib/analyzer.ts        answer classification
 src/lib/learnerModel.ts    mastery gate, calibration, misconception history
-src/lib/ai/                Gemini integration + deterministic fallback
+src/lib/ai/                Gemini integration + fallback templates
 src/lib/store.ts           JSON-file persistence
 src/app/                   Next.js pages + API routes
-tests/                     Vitest suite (65 tests)
+tests/                     Vitest suite
 ```
