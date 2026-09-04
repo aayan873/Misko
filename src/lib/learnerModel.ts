@@ -448,7 +448,12 @@ export function getMisconceptionHistory(learnerId: string): MisconceptionHistory
       });
     } else {
       existing.occurrences += 1;
-      existing.resolved = Math.max(existing.resolved, e.resolved);
+      // Latest occurrence wins, not "was it EVER resolved" — a misconception
+      // that recurs after being fixed once needs to show as Active again, not
+      // stuck showing Resolved from the earlier occurrence. This used to be
+      // Math.max(existing.resolved, e.resolved), which stuck at 1 forever the
+      // first time it was ever resolved, regardless of anything after.
+      existing.resolved = e.resolved;
       existing.diagnosis_source = e.diagnosis_source;
       existing.last_seen = e.created_at;
       existing.lastEventId = e.id;

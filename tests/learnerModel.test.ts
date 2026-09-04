@@ -474,6 +474,52 @@ describe("getMisconceptionHistory", () => {
   it("returns an empty array for a learner with no misconception history", () => {
     expect(getMisconceptionHistory(learnerId("hist3"))).toEqual([]);
   });
+
+  it("shows Active again (resolved: 0) when a fixed misconception recurs later — not stuck as Resolved forever", () => {
+    const id = learnerId("hist-recur");
+    // 1. Wrong: misconception raised, unresolved.
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "p1",
+      learnerAnswer: "x",
+    });
+    // 2. Correct: resolves it.
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "p2",
+      learnerAnswer: "y",
+    });
+    expect(getMisconceptionHistory(id)[0].resolved).toBe(1);
+
+    // 3. The exact same mistake recurs — a fresh, unresolved occurrence.
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "p3",
+      learnerAnswer: "x",
+    });
+
+    const history = getMisconceptionHistory(id);
+    expect(history).toHaveLength(1);
+    expect(history[0].occurrences).toBe(2);
+    // Must reflect the LATEST occurrence, not "was it ever resolved" — this
+    // was previously stuck at resolved:1 forever via Math.max.
+    expect(history[0].resolved).toBe(0);
+  });
 });
 
 describe("getCalibrationInsight", () => {
