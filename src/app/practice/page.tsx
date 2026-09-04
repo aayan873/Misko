@@ -5,6 +5,7 @@ import { useLearnerId } from "@/lib/useLearnerId";
 import ReasoningTrace from "@/components/ReasoningTrace";
 import { StatusIcon } from "@/components/GradeMarks";
 import MasteryDelta from "@/components/MasteryDelta";
+import MasteredStamp from "@/components/MasteredStamp";
 
 interface ClientProblem {
   id: string;
@@ -283,6 +284,9 @@ export default function PracticePage() {
 
         {phase === "result" && result && (
           <div className="mt-8 animate-[fadeIn_0.35s_ease-out] border-t border-border-soft pt-7">
+            {result.masteredNow && !result.masteredBefore && (
+              <MasteredStamp conceptName={result.conceptName} />
+            )}
             {result.outcome === "correct" ? (
               <div className="callout success flex gap-3">
                 <StatusIcon kind="success" />

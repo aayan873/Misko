@@ -106,6 +106,21 @@ body {
   }
 }
 
+@keyframes stampDown {
+  0% {
+    opacity: 0;
+    transform: scale(1.8) rotate(14deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.92) rotate(-6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-4deg);
+  }
+}
+
 @layer components {
   /* ---------- surfaces ---------- */
   /* A standard SaaS card: bordered, subtly shadowed, rounded — the ordinary,
