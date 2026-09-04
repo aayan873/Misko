@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { transcribeHandwriting } from "@/lib/ai/gemini";
 import { transcribeWorkSchema } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { readJsonBody } from "@/lib/readJsonBody";
 
 // This is the one endpoint in the app that calls a real, billed Gemini vision
 // request with essentially no natural throttle (unlike /api/submit-answer,
@@ -14,10 +15,20 @@ const PER_LEARNER_WINDOW_MS = 5 * 60 * 1000;
 const GLOBAL_LIMIT = 40;
 const GLOBAL_WINDOW_MS = 5 * 60 * 1000;
 const GLOBAL_KEY = "transcribe-work:global";
+// The image itself is capped at 4MB base64 by the Zod schema (see
+// validation.ts) — this is that plus real margin for the small text fields,
+// checked before parsing rather than after (see readJsonBody.ts).
+const MAX_TRANSCRIBE_BYTES = 5 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
-  const parsed = transcribeWorkSchema.safeParse(body);
+  const read = await readJsonBody(req, MAX_TRANSCRIBE_BYTES);
+  if (!read.ok) {
+    return NextResponse.json(
+      { transcript: null, message: read.reason === "too_large" ? "That photo is too large." : "Invalid request." },
+      { status: read.reason === "too_large" ? 413 : 400 }
+    );
+  }
+  const parsed = transcribeWorkSchema.safeParse(read.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
