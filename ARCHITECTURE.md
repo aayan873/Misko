@@ -127,3 +127,20 @@ Things that are real limitations right now, not oversights hiding as design:
 - **The confirmation-round mechanic could be generalized** beyond a single
   pending check per learner, e.g. queuing more than one suspected misconception
   at once, if usage ever showed that mattered.
+- **Known dependency vulnerabilities, deliberately not force-upgraded.**
+  `npm audit` reports issues in `esbuild`/`vite` (via `vitest`, dev-only —
+  the specific issue is about vitest's own dev server accepting requests
+  from any origin, which nothing here ever runs in production) and in
+  Next.js/`postcss`/`glob` (via `eslint-config-next`) itself. The real fixes
+  require major-version jumps — Next.js 14 → 16 being the significant one —
+  that `npm audit fix --force` would apply blindly, with real breaking-change
+  risk (App Router internals changed across those versions) that this project
+  didn't have time to regression-test properly this close to a deadline.
+  Weighed against that: this app doesn't handle adversarial production traffic
+  at any real scale (a hackathon demo, not a service with real users to
+  protect), and most of the listed CVEs are about self-hosted Next.js
+  instances under hostile traffic patterns this deployment never sees. Ran
+  the one safe, non-breaking update available (`npm audit fix`, no `--force`)
+  and left the rest as a known, documented tradeoff rather than either
+  ignoring `npm audit`'s output silently or forcing an upgrade that could
+  break everything else in this repo without adequate time to verify it.
