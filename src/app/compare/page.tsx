@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import ReasoningTrace from "@/components/ReasoningTrace";
 import MasteryRing from "@/components/MasteryRing";
 import { StatusIcon } from "@/components/GradeMarks";
@@ -168,7 +169,11 @@ export default function ComparePage() {
           info={learnerA}
           state={stateA}
           result={resultA}
-          revealed={revealA}
+          // prompt_v2.md A6: both panels only flip from "thinking" to "revealed"
+          // together, on whichever trace finishes last — a synced beat instead
+          // of each panel instantly swapping the moment its own (possibly
+          // shorter) reasoning trace finishes.
+          revealed={revealA && revealB}
           submittedAnswer={wrongAnswer}
           onTraceComplete={() => setRevealA(true)}
         />
@@ -177,7 +182,7 @@ export default function ComparePage() {
           info={learnerB}
           state={stateB}
           result={resultB}
-          revealed={revealB}
+          revealed={revealA && revealB}
           submittedAnswer={wrongAnswer}
           onTraceComplete={() => setRevealB(true)}
         />
@@ -247,7 +252,12 @@ function LearnerPanel({
           {!revealed ? (
             <ReasoningTrace steps={result.steps} onComplete={onTraceComplete} />
           ) : (
-            <div className="callout danger flex animate-[fadeIn_0.35s_ease-out] gap-3">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="callout danger flex gap-3"
+            >
               <StatusIcon kind="danger" />
               <div>
                 <p className="text-[13.5px] font-semibold text-ink">
@@ -259,7 +269,7 @@ function LearnerPanel({
                   {result.source === "fallback" ? "fallback template" : "live Gemini response"}
                 </p>
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
       )}
