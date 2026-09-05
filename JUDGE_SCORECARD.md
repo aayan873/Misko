@@ -90,9 +90,15 @@ tested in isolation, repeatedly through this session's commit history.
   serverless functions don't provide, so nothing typed there actually
   persists (README, ARCHITECTURE.md "Future work"). A judge clicking the
   live link without reading that caveat first could reasonably think the app
-  is broken. This is the single biggest risk to the Technical Execution
-  score and isn't fully fixable without swapping to a real hosted database
-  before submission — worth prioritizing if time allows before the deadline.
+  is broken. Partially mitigated since this was first written: the app now
+  shows an honest in-app notice on the actual Vercel deployment itself
+  (`DeploymentNotice.tsx`, detected via Vercel's own `VERCEL` system env
+  var) — so a judge doesn't have to have read the README first to know why
+  nothing saves. That's a real improvement, but it's still a workaround, not
+  a fix: the underlying limitation (no real persistence on this deployment)
+  is unchanged, and swapping to a real hosted database is still the only way
+  to remove it rather than just disclose it — worth prioritizing if time
+  allows before the deadline.
 - No screenshots exist yet (README's own Limitations section says so) —
   SCREENSHOTS.md doesn't exist either as of this write-up.
 - Single-instance in-memory caches (`problemCache.ts`, `spotMistakeCache.ts`)
