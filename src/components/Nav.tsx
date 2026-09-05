@@ -8,7 +8,6 @@ const LINKS = [
   { href: "/spot-the-mistake", label: "Spot the Mistake" },
   { href: "/compare", label: "Compare" },
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/teacher", label: "Class View" },
 ];
 
 export default function Nav() {

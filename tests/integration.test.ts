@@ -17,8 +17,6 @@ const {
   lastMisconceptionOnConcept,
   getMisconceptionHistory,
   getCalibrationInsight,
-  getClassRoster,
-  getAtRiskLearners,
   exportLearnerData,
   importLearnerData,
   recordSpotMistakeAttempt,
@@ -33,7 +31,7 @@ beforeEach(() => {
 /**
  * This doesn't test any one function in isolation — every other test file
  * does that. This walks one learner through a single long, realistic session
- * touching ten different features in sequence, the way an actual user would,
+ * touching nine different features in sequence, the way an actual user would,
  * and checks they compose correctly rather than just each working alone.
  * Modeled directly on a manual live run against the real running server
  * during this session (see the LOOP commit history) — verified there via
@@ -165,19 +163,7 @@ describe("full-session integration: many features composing correctly together",
     // attempts were ever recorded through the normal practice flow.
     expect(getConceptMastery(learner, "combining-like-terms").attempts).toBe(0);
 
-    // --- Phase 7: this learner shows up correctly in the class-wide (teacher) view. ---
-    const roster = getClassRoster();
-    const rosterEntry = roster.find((r) => r.learnerId === learner);
-    // 2, not 1: the filler loop above needs 4 correct negative-numbers answers
-    // to cross order-of-operations' review threshold, and 3 correct answers is
-    // also enough to cross negative-numbers' OWN mastery threshold — a real
-    // side effect first noticed running this exact scenario live against the
-    // actual server, not a mistake in this test's setup.
-    expect(rosterEntry?.conceptsMastered).toBe(2);
-    const atRisk = getAtRiskLearners().find((r) => r.learnerId === learner);
-    expect(atRisk?.reason).toBe("overconfident");
-
-    // --- Phase 8: export this whole rich state and import it into a fresh
+    // --- Phase 7: export this whole rich state and import it into a fresh
     // learner id — the two must be indistinguishable afterward. ---
     const exported = exportLearnerData(learner);
     const restored = "integration-restored";

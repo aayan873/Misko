@@ -103,9 +103,8 @@ a streak counter — one slip lowers the estimate instead of needing to
 reset a whole progress bar. We measured that directly: it takes a minimum of
 3 correct answers to cross mastery at high accuracy, and meaningfully longer
 at lower accuracy — real numbers, not a guess, documented in
-EVALUATION.md."* Optionally show the `/spot-the-mistake` or `/teacher` view
-for five seconds each if time allows, but don't let this section run long —
-the wow moment already happened.
+EVALUATION.md."* Optionally show `/spot-the-mistake` for five seconds if time
+allows, but don't let this section run long — the wow moment already happened.
 
 ## 1:55–2:00 — Final statement
 

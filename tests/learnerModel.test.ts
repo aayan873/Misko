@@ -21,9 +21,6 @@ const {
   getMisconceptionHistory,
   getCalibrationInsight,
   getTimingInsight,
-  getClassMisconceptionSummary,
-  getAtRiskLearners,
-  getClassRoster,
   exportLearnerData,
   importLearnerData,
   recordSpotMistakeAttempt,
@@ -727,128 +724,6 @@ describe("getTimingInsight", () => {
     for (let i = 0; i < 5; i++) record(id, true, 10000);
     const insight = getTimingInsight(id);
     expect(insight?.wrongCount).toBe(5);
-  });
-});
-
-describe("class-wide (teacher-facing) aggregation", () => {
-  it("getClassMisconceptionSummary ranks by distinct learners before raw count", () => {
-    const a = learnerId("class-a");
-    const b = learnerId("class-b");
-    const c = learnerId("class-c");
-
-    // Two different learners hit ORDER_LEFT_TO_RIGHT once each...
-    for (const id of [a, b]) {
-      recordAttempt({
-        learnerId: id,
-        conceptId: "order-of-operations",
-        misconceptionId: "ORDER_LEFT_TO_RIGHT",
-        outcome: "matched_misconception",
-        confidenceBefore: 3,
-        hintLevelUsed: 1,
-        problemPrompt: "x",
-        learnerAnswer: "y",
-      });
-    }
-    // ...while a single learner hits ORDER_EXPONENT_LAST five times.
-    for (let i = 0; i < 5; i++) {
-      recordAttempt({
-        learnerId: c,
-        conceptId: "order-of-operations",
-        misconceptionId: "ORDER_EXPONENT_LAST",
-        outcome: "matched_misconception",
-        confidenceBefore: 3,
-        hintLevelUsed: 1,
-        problemPrompt: "x",
-        learnerAnswer: "y",
-      });
-    }
-
-    const summary = getClassMisconceptionSummary();
-    expect(summary[0].misconceptionId).toBe("ORDER_LEFT_TO_RIGHT");
-    expect(summary[0].distinctLearners).toBe(2);
-    expect(summary[1].misconceptionId).toBe("ORDER_EXPONENT_LAST");
-    expect(summary[1].distinctLearners).toBe(1);
-    expect(summary[1].totalOccurrences).toBe(5);
-  });
-
-  it("getAtRiskLearners flags overconfidence and stuck-ness with distinct reasons, and skips fine learners", () => {
-    const overconfident = learnerId("risk-overconfident");
-    for (let i = 0; i < 5; i++) {
-      recordAttempt({
-        learnerId: overconfident,
-        conceptId: "order-of-operations",
-        misconceptionId: null,
-        outcome: "unrecognized",
-        confidenceBefore: 5,
-        hintLevelUsed: 1,
-        problemPrompt: "x",
-        learnerAnswer: "y",
-      });
-    }
-
-    const stuck = learnerId("risk-stuck");
-    // Comfortably above STUCK_MIN_ATTEMPTS (6) in learnerModel.ts, all wrong so
-    // p_mastery stays well under STUCK_MAX_MASTERY (0.4).
-    for (let i = 0; i < 8; i++) {
-      recordAttempt({
-        learnerId: stuck,
-        conceptId: "order-of-operations",
-        misconceptionId: null,
-        outcome: "unrecognized",
-        confidenceBefore: 3,
-        hintLevelUsed: 1,
-        problemPrompt: "x",
-        learnerAnswer: "y",
-      });
-    }
-
-    const fine = learnerId("risk-fine");
-    recordAttempt({
-      learnerId: fine,
-      conceptId: "order-of-operations",
-      misconceptionId: null,
-      outcome: "correct",
-      confidenceBefore: 3,
-      hintLevelUsed: 1,
-      problemPrompt: "x",
-      learnerAnswer: "y",
-    });
-
-    const atRisk = getAtRiskLearners();
-    const byId = new Map(atRisk.map((r) => [r.learnerId, r]));
-
-    expect(byId.get(overconfident)?.reason).toBe("overconfident");
-    expect(byId.get(stuck)?.reason).toBe("stuck");
-    expect(byId.has(fine)).toBe(false);
-  });
-
-  it("getClassRoster aggregates attempts and mastered-concept count per learner", () => {
-    const id = learnerId("roster-1");
-    recordAttempt({
-      learnerId: id,
-      conceptId: "order-of-operations",
-      misconceptionId: null,
-      outcome: "correct",
-      confidenceBefore: 3,
-      hintLevelUsed: 1,
-      problemPrompt: "x",
-      learnerAnswer: "y",
-    });
-    recordAttempt({
-      learnerId: id,
-      conceptId: "order-of-operations",
-      misconceptionId: null,
-      outcome: "unrecognized",
-      confidenceBefore: 3,
-      hintLevelUsed: 1,
-      problemPrompt: "x",
-      learnerAnswer: "y",
-    });
-
-    const roster = getClassRoster();
-    const entry = roster.find((r) => r.learnerId === id);
-    expect(entry?.totalAttempts).toBe(2);
-    expect(entry?.conceptsMastered).toBe(0);
   });
 });
 

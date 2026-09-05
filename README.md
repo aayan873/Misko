@@ -16,8 +16,8 @@ tracking, misconception history, and the confirmation mechanic below won't do an
 on this deployment. Run it locally (see Setup) for the real thing.
 
 This README describes what's on this branch, which is ahead of what's actually deployed
-and ahead of `main` — several sections below (spaced review, the teacher view, export/
-import, Spot the Mistake) aren't live at the link above yet.
+and ahead of `main` — several sections below (spaced review, export/import, Spot the
+Mistake) aren't live at the link above yet.
 
 ## The problem
 
@@ -76,11 +76,6 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
 - **Acts on your confidence calibration, not just charts it.** If you're consistently
   confident but wrong, or consistently unsure but right, the dashboard says so directly
   instead of leaving you to notice the pattern in a bar chart yourself.
-- **`/teacher` aggregates across every learner this instance has seen** — common
-  mistakes ranked by how many different people hit them, who needs a look and why
-  (overconfident, underselling themselves, or stuck), a full roster. No accounts or
-  real rosters behind it (see Limitations) — an honest demonstration of the idea, not a
-  classroom-ready product.
 - **Export and restore your progress.** There are no accounts here on purpose, which
   means clearing your browser or switching devices normally loses everything with no
   way back. `/dashboard` lets you download a backup and restore it later, or in a
@@ -124,8 +119,8 @@ phrasing. That tradeoff — and the test that caught it — is documented in the
 - A local TF-IDF + cosine-similarity classifier (`src/lib/domain/textSimilarity.ts`) as
   a no-API-key fallback for freeform misconception classification
 - Zod for input validation on every API route
-- Vitest, 261 tests covering the deterministic core, mastery gate, adaptive difficulty,
-  spaced review, calibration, class-wide aggregation, export/import, real HTTP route
+- Vitest, 268 tests covering the deterministic core, mastery gate,
+  adaptive difficulty, spaced review, calibration, export/import, real HTTP route
   behavior (rate limiting, validation, error paths), AI fallback behavior, and input
   validation
 
@@ -160,8 +155,8 @@ npm test
    misconception history, confidence calibration (with a direct callout if it's
    consistently off), a shape of where your mistakes cluster by concept, and a backup/
    restore option.
-6. `/spot-the-mistake` for the reverse exercise, `/teacher` for the aggregated
-   class-wide view across everyone who's used this instance.
+6. `/spot-the-mistake` for the reverse exercise: instead of solving a problem, find the
+   error in a step-by-step solution that gets it wrong on purpose.
 
 ## Limitations
 
@@ -182,9 +177,6 @@ npm test
   above) — would need a real database there.
 - 5 concepts, 15 misconceptions. Narrow scope on purpose, not full subject coverage.
 - No real student usage data behind any of this yet.
-- `/teacher` shows every learner this instance has recorded data for, not a real
-  roster — there's no auth or account system at all, so "the class" is just "everyone
-  who's used this server." Honest for a hackathon demo, not classroom-deployment-ready.
 - Restoring a backup on `/dashboard` replaces everything currently in this browser for
   the current learner id — it's a clean replace, not a merge, with a confirmation
   prompt since it can't be undone.
@@ -198,8 +190,8 @@ npm test
 src/lib/domain/            concepts, misconceptions, problem engine, flawed worked examples
 src/lib/analyzer.ts        answer classification
 src/lib/bkt.ts             Bayesian Knowledge Tracing (mastery estimation)
-src/lib/learnerModel.ts    mastery gate, spaced review, calibration, class-wide
-                            aggregation, export/import, misconception history
+src/lib/learnerModel.ts    mastery gate, spaced review, calibration, export/import,
+                            misconception history
 src/lib/domain/textSimilarity.ts  local TF-IDF fallback classifier
 src/lib/ai/                Gemini integration + fallback templates
 src/lib/store.ts           JSON-file persistence

@@ -14,18 +14,16 @@ const { recordAttempt } = await import("../src/lib/learnerModel");
 const { DEMO_LEARNER_A, DEMO_LEARNER_B } = await import("../src/lib/demoLearners");
 const { POST: learnerPOST } = await import("../src/app/api/learner/route");
 const { GET: sessionSummaryGET } = await import("../src/app/api/session-summary/route");
-const { GET: teacherSummaryGET } = await import("../src/app/api/teacher-summary/route");
 const { POST: demoSeedPOST } = await import("../src/app/api/demo/seed/route");
 const { GET: demoProblemGET } = await import("../src/app/api/demo/problem/route");
 
 /**
- * Route-level tests for the five API routes that had none at all: /api/learner,
- * /api/session-summary, /api/teacher-summary, /api/demo/seed, /api/demo/problem.
- * All five are thin wrappers over already-well-tested learnerModel functions
- * (getSessionSummary, getClassMisconceptionSummary/getAtRiskLearners/
- * getClassRoster, seedDemoLearners) — the point here is the route-level wiring
- * (query parsing, response shape, validation errors), not re-testing that
- * underlying logic. This closes out full route-level coverage across the API.
+ * Route-level tests for the API routes that had none at all: /api/learner,
+ * /api/session-summary, /api/demo/seed, /api/demo/problem. All are thin
+ * wrappers over already-well-tested learnerModel functions (getSessionSummary,
+ * seedDemoLearners) — the point here is the route-level wiring (query parsing,
+ * response shape, validation errors), not re-testing that underlying logic.
+ * This closes out full route-level coverage across the API.
  */
 describe("POST /api/learner", () => {
   beforeEach(() => {
@@ -135,59 +133,6 @@ describe("GET /api/session-summary", () => {
       caught: 0,
       conceptsMasteredNow: [],
     });
-  });
-});
-
-describe("GET /api/teacher-summary", () => {
-  beforeEach(() => {
-    store._resetForTests();
-  });
-
-  it("aggregates across every learner with recorded data, in the documented response shape", async () => {
-    const learnerA = randomUUID();
-    const learnerB = randomUUID();
-    recordAttempt({
-      learnerId: learnerA,
-      conceptId: "order-of-operations",
-      misconceptionId: "ORDER_LEFT_TO_RIGHT",
-      outcome: "matched_misconception",
-      confidenceBefore: 5,
-      hintLevelUsed: 1,
-      problemPrompt: "x",
-      learnerAnswer: "y",
-      diagnosisSource: "rule",
-    });
-    recordAttempt({
-      learnerId: learnerB,
-      conceptId: "order-of-operations",
-      misconceptionId: null,
-      outcome: "correct",
-      confidenceBefore: 3,
-      hintLevelUsed: 1,
-      problemPrompt: "x",
-      learnerAnswer: "y",
-    });
-
-    const res = await teacherSummaryGET();
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.learnerCount).toBe(2);
-    expect(body.roster).toHaveLength(2);
-    expect(body.roster.map((r: { learnerId: string }) => r.learnerId).sort()).toEqual(
-      [learnerA, learnerB].sort()
-    );
-    // Misconception names/concept names are resolved server-side, not left as raw ids.
-    const misconception = body.misconceptions.find(
-      (m: { misconceptionId: string }) => m.misconceptionId === "ORDER_LEFT_TO_RIGHT"
-    );
-    expect(misconception.name).toBe("Strict left-to-right evaluation");
-    expect(misconception.conceptName).toBe("Order of Operations");
-  });
-
-  it("returns an empty-but-valid shape when no learner has any data", async () => {
-    const res = await teacherSummaryGET();
-    const body = await res.json();
-    expect(body).toEqual({ learnerCount: 0, roster: [], misconceptions: [], atRisk: [] });
   });
 });
 

@@ -54,8 +54,10 @@ around. Numbered because a few code comments reference specific items directly
    Industry surveys on grading workload vary a lot by methodology, but land
    somewhere around 5-15+ hours a week for a typical teacher, and delayed
    feedback measurably loses pedagogical value the longer it takes to arrive.
-   `/teacher` (`src/lib/learnerModel.ts`'s class-wide aggregation) is Misko's
-   attempt at this angle — ranking common mistakes across every learner an
-   instance has seen, and flagging who needs a look and why. It's an honest
-   hackathon-scale demonstration of the idea (see the README's Limitations
-   section for what it isn't), not a claim that this closes the gap outright.
+   An earlier version of this project had a `/teacher` class-wide aggregation
+   view attempting this angle, and pulled it back out: the brief is explicit
+   that a product should target one clear user, not everyone
+   (prompt.md §6 — "do not target 'everyone'"), and splitting Misko's pitch
+   across two personas (student and teacher) diluted the one it was actually
+   built around. The gap is real and worth naming as a research finding, but
+   chasing it here would have cost more in focus than it gained in coverage.
