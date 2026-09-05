@@ -98,7 +98,7 @@ export default function ConceptPath({ concepts, frontierConceptId }: ConceptPath
                     ? `${c.correct}/${c.attempts}`
                     : c.mastered
                     ? "mastered"
-                    : "reviewable"}
+                    : "not started"}
                 </p>
               </div>
             </div>

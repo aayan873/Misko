@@ -93,6 +93,18 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Lets a row scroll horizontally without showing a visible scrollbar —
+   * used by Nav's link row on narrow viewports (see Nav.tsx), where 5 links
+   * plus the wordmark don't fit a phone-width screen and would otherwise
+   * either overflow the page or need a full mobile-menu component. */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @keyframes fadeIn {
