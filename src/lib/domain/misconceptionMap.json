@@ -1,0 +1,128 @@
+[
+  {
+    "id": "ORDER_LEFT_TO_RIGHT",
+    "conceptId": "order-of-operations",
+    "x": 0.95,
+    "y": -0.513
+  },
+  {
+    "id": "ORDER_ADD_BEFORE_MULT",
+    "conceptId": "order-of-operations",
+    "x": 0.203,
+    "y": 0.062
+  },
+  {
+    "id": "ORDER_EXPONENT_LAST",
+    "conceptId": "order-of-operations",
+    "x": -0.201,
+    "y": -0.748
+  },
+  {
+    "id": "NEG_SUBTRACT_SIGN",
+    "conceptId": "negative-numbers",
+    "x": 0.682,
+    "y": 0.378
+  },
+  {
+    "id": "NEG_MULT_SIGN",
+    "conceptId": "negative-numbers",
+    "x": 0.665,
+    "y": 0.98
+  },
+  {
+    "id": "NEG_ADD_MAGNITUDE",
+    "conceptId": "negative-numbers",
+    "x": 0.955,
+    "y": 0.632
+  },
+  {
+    "id": "DIST_NO_MULTIPLY_SECOND",
+    "conceptId": "distributing",
+    "x": 0.605,
+    "y": -0.061
+  },
+  {
+    "id": "DIST_SIGN_ERROR",
+    "conceptId": "distributing",
+    "x": 1,
+    "y": 0.267
+  },
+  {
+    "id": "DIST_ADD_INSTEAD_MULTIPLY",
+    "conceptId": "distributing",
+    "x": 0.758,
+    "y": -0.088
+  },
+  {
+    "id": "CLT_ADD_UNLIKE",
+    "conceptId": "combining-like-terms",
+    "x": 0.312,
+    "y": -0.599
+  },
+  {
+    "id": "CLT_EXPONENT_ADD",
+    "conceptId": "combining-like-terms",
+    "x": 0.393,
+    "y": -0.98
+  },
+  {
+    "id": "CLT_DROP_VARIABLE",
+    "conceptId": "combining-like-terms",
+    "x": 0.136,
+    "y": -0.862
+  },
+  {
+    "id": "EQ_WRONG_OPERATION",
+    "conceptId": "linear-equations",
+    "x": -0.351,
+    "y": -0.166
+  },
+  {
+    "id": "EQ_ONE_SIDE_ONLY",
+    "conceptId": "linear-equations",
+    "x": -0.499,
+    "y": 0.142
+  },
+  {
+    "id": "EQ_DIVIDE_PARTIAL",
+    "conceptId": "linear-equations",
+    "x": -0.63,
+    "y": -0.212
+  },
+  {
+    "id": "DIM_INVERTED_FACTOR",
+    "conceptId": "dimensional-analysis",
+    "x": -0.314,
+    "y": 0.945
+  },
+  {
+    "id": "DIM_CHAINED_DIRECTION",
+    "conceptId": "dimensional-analysis",
+    "x": 0.011,
+    "y": 0.952
+  },
+  {
+    "id": "DIM_WRONG_QUANTITY",
+    "conceptId": "dimensional-analysis",
+    "x": -0.185,
+    "y": 0.851
+  },
+  {
+    "id": "MOLE_RATIO_INVERTED",
+    "conceptId": "mole-ratios",
+    "x": -0.981,
+    "y": 0.776
+  },
+  {
+    "id": "MOLE_RATIO_IGNORED",
+    "conceptId": "mole-ratios",
+    "x": -1,
+    "y": 0.351
+  },
+  {
+    "id": "MOLE_RATIO_PARTIAL",
+    "conceptId": "mole-ratios",
+    "x": -0.603,
+    "y": 0.576
+  }
+]

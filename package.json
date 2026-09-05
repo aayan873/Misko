@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate-embeddings": "tsx scripts/generateMisconceptionEmbeddings.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -24,6 +25,7 @@
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^1.6.0"
   }

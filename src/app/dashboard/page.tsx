@@ -5,6 +5,7 @@ import { useLearnerId } from "@/lib/useLearnerId";
 import { useSessionStart } from "@/lib/useSessionStart";
 import ConceptPath, { ConceptPathEntry } from "@/components/ConceptPath";
 import MisconceptionRadar from "@/components/MisconceptionRadar";
+import MisconceptionMap from "@/components/MisconceptionMap";
 import ExportImport from "@/components/ExportImport";
 import SessionSummary from "@/components/SessionSummary";
 
@@ -216,6 +217,22 @@ export default function DashboardPage() {
           </p>
           <div className="card flex justify-center p-7">
             <MisconceptionRadar axes={radarAxes} />
+          </div>
+        </section>
+      )}
+
+      {state.misconceptionHistory.length > 0 && (
+        <section className="mt-10">
+          <h2 className="section-title">How your mistakes relate to each other</h2>
+          <p className="mt-2.5 mb-6 max-w-[56ch] text-[15px] leading-relaxed text-ink-soft">
+            A different kind of model from the mastery gate above: every misconception across
+            both subjects, embedded and laid out by how conceptually similar their descriptions
+            are — a mistake in Chemistry can sit close to one in Algebra if they&apos;re really
+            the same underlying error. Filled dots are ones you&apos;ve made, sized by how often;
+            faint rings are ones you haven&apos;t.
+          </p>
+          <div className="card flex justify-center p-7">
+            <MisconceptionMap history={state.misconceptionHistory} />
           </div>
         </section>
       )}
