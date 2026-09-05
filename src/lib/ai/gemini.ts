@@ -103,6 +103,85 @@ export async function generateCorrectFeedback(problem: ProblemInstance): Promise
   }
 }
 
+// ---------------------------------------------------------------------------
+// Streaming variants (prompt_v2.md A1) — same prompts, same fallback text,
+// same never-throws contract as generateDiagnosis/generateCorrectFeedback
+// above, but yielding text incrementally via generateContentStream instead of
+// resolving once with the full response. Used by /api/stream-feedback so
+// /practice's diagnosis panel can render tokens as they arrive instead of a
+// static block appearing — the same felt experience as watching any modern AI
+// product "think." generateDiagnosis/generateCorrectFeedback are untouched:
+// nothing else in this codebase needed to change to add this.
+//
+// Known limitation: withTimeout below only bounds the INITIAL request (the
+// promise that resolves to the stream handle) — a stall mid-stream, after
+// the first chunk, has no per-chunk timeout. Accepted for a first working
+// version rather than adding a separate idle-timeout mechanism; the initial
+// timeout still guarantees this never hangs before yielding anything at all.
+// ---------------------------------------------------------------------------
+
+export async function* streamCorrectFeedback(problem: ProblemInstance): AsyncGenerator<string> {
+  const client = getClient();
+  if (!client) {
+    yield fallbackCorrectFeedback(problem);
+    return;
+  }
+  try {
+    const model = client.getGenerativeModel({
+      model: MODEL_NAME,
+      systemInstruction: SYSTEM_INSTRUCTIONS,
+    });
+    const prompt = buildCorrectFeedbackPrompt(problem);
+    const { stream } = await withTimeout(model.generateContentStream(prompt), TIMEOUT_MS);
+    let gotAny = false;
+    for await (const chunk of stream) {
+      const text = chunk.text();
+      if (text) {
+        gotAny = true;
+        yield text;
+      }
+    }
+    if (!gotAny) yield fallbackCorrectFeedback(problem);
+  } catch (err) {
+    console.error("[gemini] streaming correct-feedback failed, using fallback:", err);
+    yield fallbackCorrectFeedback(problem);
+  }
+}
+
+export async function* streamDiagnosis(params: {
+  problem: ProblemInstance;
+  learnerAnswer: string;
+  misconception: Misconception | null;
+  hintLevel: 1 | 2 | 3;
+  recentMisconceptionNames: string[];
+}): AsyncGenerator<string> {
+  const client = getClient();
+  if (!client) {
+    yield fallbackDiagnosis(params.misconception, params.hintLevel, params.recentMisconceptionNames);
+    return;
+  }
+  try {
+    const model = client.getGenerativeModel({
+      model: MODEL_NAME,
+      systemInstruction: SYSTEM_INSTRUCTIONS,
+    });
+    const prompt = buildDiagnosisPrompt(params);
+    const { stream } = await withTimeout(model.generateContentStream(prompt), TIMEOUT_MS);
+    let gotAny = false;
+    for await (const chunk of stream) {
+      const text = chunk.text();
+      if (text) {
+        gotAny = true;
+        yield text;
+      }
+    }
+    if (!gotAny) yield fallbackDiagnosis(params.misconception, params.hintLevel, params.recentMisconceptionNames);
+  } catch (err) {
+    console.error("[gemini] streaming diagnosis failed, using fallback:", err);
+    yield fallbackDiagnosis(params.misconception, params.hintLevel, params.recentMisconceptionNames);
+  }
+}
+
 export interface ClassificationResult {
   misconceptionId: string | null;
   confidence: "low" | "medium" | "high" | null;

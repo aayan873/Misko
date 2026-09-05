@@ -12,13 +12,7 @@ import {
   getConceptMastery,
 } from "@/lib/learnerModel";
 import { getConcept } from "@/lib/domain/concepts";
-import {
-  classifyCorrectReasoning,
-  classifyFreeformMisconception,
-  generateCorrectFeedback,
-  generateDiagnosis,
-  isGeminiConfigured,
-} from "@/lib/ai/gemini";
+import { classifyCorrectReasoning, classifyFreeformMisconception, isGeminiConfigured } from "@/lib/ai/gemini";
 import { submitAnswerSchema } from "@/lib/validation";
 import { ConfirmationStatus, DiagnosisSource } from "@/lib/store";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -28,13 +22,14 @@ import { checkRateLimit } from "@/lib/rateLimit";
 // concept's candidates are being checked (see textSimilarity.ts).
 const ALL_MISCONCEPTION_DESCRIPTIONS = MISCONCEPTIONS.map((m) => m.description);
 
-// The other real, billed-Gemini-call endpoint besides /api/transcribe-work —
-// a single request here can trigger up to two LLM calls (classification +
-// diagnosis, or reasoning-check + correct-feedback). Naturally paced by the
-// practice UI for a real user, but nothing stops a direct hit at any rate.
-// Limits set generous enough that no real practice session could ever notice
-// them (60/5min per learner is ~1 every 5 seconds sustained) — this is a
-// cost backstop, not a gameplay throttle.
+// A real, billed-Gemini-call endpoint (classification only, as of prompt_v2.md
+// A1 — the actual hint/feedback TEXT generation moved to /api/stream-feedback
+// so it can stream; this route can still trigger one classification call:
+// classifyFreeformMisconception or classifyCorrectReasoning). Naturally paced
+// by the practice UI for a real user, but nothing stops a direct hit at any
+// rate. Limits set generous enough that no real practice session could ever
+// notice them (60/5min per learner is ~1 every 5 seconds sustained) — this is
+// a cost backstop, not a gameplay throttle.
 const PER_LEARNER_LIMIT = 60;
 const PER_LEARNER_WINDOW_MS = 5 * 60 * 1000;
 const GLOBAL_LIMIT = 300;
@@ -141,11 +136,13 @@ export async function POST(req: NextRequest) {
 
     const afterMastery = getConceptMastery(learnerId, problem.conceptId);
 
-    const feedback = await generateCorrectFeedback(problem);
     return NextResponse.json({
       outcome: "correct",
-      feedbackText: feedback.text,
-      source: feedback.source,
+      // No feedbackText here on purpose (prompt_v2.md A1) — the client fetches
+      // that separately, streamed, from /api/stream-feedback, passing this
+      // outcome straight back (misconceptionId stays null for a correct answer;
+      // nothing needs naming).
+      misconceptionId: null,
       confidenceBefore,
       wasWellCalibrated: confidenceBefore >= 4,
       confirmationResolved,
@@ -258,23 +255,18 @@ export async function POST(req: NextRequest) {
     .map((h) => getMisconception(h.misconception_id)?.name)
     .filter((n): n is string => Boolean(n));
 
-  const diagnosis = await generateDiagnosis({
-    problem,
-    learnerAnswer: answer,
-    misconception,
-    hintLevel,
-    recentMisconceptionNames: recentNames,
-  });
-
   const revealAnswer = hintLevel >= 3;
   const afterMastery = getConceptMastery(learnerId, problem.conceptId);
 
   return NextResponse.json({
     outcome: finalOutcome,
     misconceptionName: misconception?.name ?? null,
+    // The client passes this straight back to /api/stream-feedback (prompt_v2.md
+    // A1) to fetch the actual hint text, streamed — no feedbackText/source
+    // here anymore, see that route for why.
+    misconceptionId,
+    recentMisconceptionNames: recentNames,
     diagnosisSource,
-    feedbackText: diagnosis.text,
-    source: diagnosis.source,
     revealAnswer,
     correctAnswer: revealAnswer ? problem.correctAnswer : undefined,
     confirmationResolved: caughtOriginalPrompt ? "caught" : null,

@@ -174,8 +174,20 @@ describe("full-session integration: many features composing correctly together",
       spotMistakeAttempts: exported.spotMistakeAttempts,
     });
 
-    expect(getAllMastery(restored)).toEqual(
-      getAllMastery(learner).map((m) => ({ ...m, learner_id: restored }))
+    // A never-touched concept (0 attempts) has no real persisted row at all —
+    // getConceptMastery synthesizes one fresh on every call, with
+    // updated_at: Date.now() computed at call time, not exported/imported
+    // data. Comparing that field for such rows is really just asserting
+    // "did Date.now() not tick between these two separate calls," which is
+    // real, observed flakiness (not specific to chemistry, just made more
+    // likely to trigger by there now being more never-touched concepts to
+    // iterate through between the two calls) — normalize it away for
+    // zero-attempt rows before comparing; every concept with real attempts
+    // still compares its real, actually-round-tripped updated_at exactly.
+    const normalize = (rows: ReturnType<typeof getAllMastery>) =>
+      rows.map((m) => (m.attempts === 0 ? { ...m, updated_at: 0 } : m));
+    expect(normalize(getAllMastery(restored))).toEqual(
+      normalize(getAllMastery(learner)).map((m) => ({ ...m, learner_id: restored }))
     );
     expect(getSpotMistakeStats(restored)).toEqual(getSpotMistakeStats(learner));
     expect(getConfirmationStats(restored)).toEqual(getConfirmationStats(learner));

@@ -32,8 +32,12 @@ const REASON_BADGES: Record<ReasonType, { label: string; className: string }> = 
 
 interface SubmitResult {
   outcome: "correct" | "matched_misconception" | "unrecognized";
-  feedbackText: string;
-  source: "gemini" | "fallback";
+  // No feedback text here anymore (prompt_v2.md A1) — misconceptionId and
+  // recentMisconceptionNames are exactly what this submission determined,
+  // passed straight to /api/stream-feedback to fetch the actual hint text,
+  // streamed, instead of resolving once with the full string.
+  misconceptionId: string | null;
+  recentMisconceptionNames?: string[];
   misconceptionName?: string | null;
   diagnosisSource?: "rule" | "ai" | "similarity" | null;
   revealAnswer?: boolean;
@@ -73,6 +77,11 @@ export default function PracticePage() {
   const [showWorkField, setShowWorkField] = useState(false);
   const [hintLevel, setHintLevel] = useState<1 | 2 | 3>(1);
   const [result, setResult] = useState<SubmitResult | null>(null);
+  // The streamed hint/feedback text (prompt_v2.md A1) — fills in progressively
+  // as chunks arrive from /api/stream-feedback, separate from `result` since it
+  // resolves on its own schedule, independent of the reasoning-trace animation.
+  const [streamedFeedback, setStreamedFeedback] = useState("");
+  const [feedbackStreaming, setFeedbackStreaming] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
@@ -133,8 +142,58 @@ export default function PracticePage() {
     if (learnerId) loadNextProblem();
   }, [learnerId, loadNextProblem]);
 
+  // Fetches the actual hint/feedback text separately, streamed (prompt_v2.md
+  // A1) — called right after submitAnswer's main POST resolves, passing back
+  // exactly what that response already determined (outcome, misconceptionId,
+  // recentMisconceptionNames) rather than re-deriving any of it here. Runs
+  // independently of the reasoning-trace animation (phase "tracing"): by the
+  // time that finishes and phase becomes "result", this may already be fully
+  // or partially filled in.
+  async function streamFeedback(
+    problemId: string,
+    submittedAnswer: string,
+    submittedHintLevel: 1 | 2 | 3,
+    data: SubmitResult
+  ) {
+    setStreamedFeedback("");
+    setFeedbackStreaming(true);
+    try {
+      const res = await fetch("/api/stream-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          learnerId,
+          problemId,
+          answer: submittedAnswer,
+          outcome: data.outcome,
+          misconceptionId: data.misconceptionId,
+          hintLevel: submittedHintLevel,
+          recentMisconceptionNames: data.recentMisconceptionNames ?? [],
+        }),
+      });
+      if (!res.ok || !res.body) {
+        setStreamedFeedback("(Couldn't load the explanation — the rest of your result above is still accurate.)");
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        setStreamedFeedback((prev) => prev + decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      setStreamedFeedback("(Couldn't load the explanation — the rest of your result above is still accurate.)");
+    } finally {
+      setFeedbackStreaming(false);
+    }
+  }
+
   async function submitAnswer() {
     if (!learnerId || !problem || confidence === null || !answer.trim()) return;
+    const problemId = problem.id;
+    const submittedAnswer = answer;
+    const submittedHintLevel = hintLevel;
     setPhase("submitting");
     try {
       const res = await fetch("/api/submit-answer", {
@@ -142,10 +201,10 @@ export default function PracticePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           learnerId,
-          problemId: problem.id,
-          answer,
+          problemId,
+          answer: submittedAnswer,
           confidenceBefore: confidence,
-          hintLevel,
+          hintLevel: submittedHintLevel,
           shownWork: shownWork.trim() || undefined,
           timeSpentMs: problemTimer.elapsedMs() ?? undefined,
         }),
@@ -160,6 +219,9 @@ export default function PracticePage() {
       setResult(data);
       setStreak((s) => (data.outcome === "correct" ? s + 1 : 0));
       setPhase("tracing");
+      // Deliberately not awaited — this fills in streamedFeedback on its own
+      // schedule while the reasoning-trace animation plays independently.
+      streamFeedback(problemId, submittedAnswer, submittedHintLevel, data);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Something went wrong");
       setPhase("error");
@@ -204,6 +266,21 @@ export default function PracticePage() {
     setResult(null);
     setPhase("answering");
   }
+
+  // Streamed in via /api/stream-feedback (prompt_v2.md A1) — may still be
+  // arriving when the result view first renders; the cursor is the only
+  // visible cue while it's incomplete, the same felt experience as watching
+  // any modern AI product "think" instead of a static block appearing.
+  const feedbackDisplay = (
+    <>
+      {streamedFeedback}
+      {feedbackStreaming && (
+        <span className="ml-0.5 animate-pulse" aria-hidden="true">
+          ▍
+        </span>
+      )}
+    </>
+  );
 
   if (!learnerId || phase === "loading") {
     return (
@@ -430,7 +507,7 @@ export default function PracticePage() {
                 <StatusIcon kind="success" />
                 <div>
                   <p className="text-[14.5px] font-semibold text-ink">Correct — {answer}</p>
-                  <p className="mt-1 text-[14px] leading-relaxed text-ink-soft">{result.feedbackText}</p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-ink-soft">{feedbackDisplay}</p>
                   {result.confirmationResolved === "confirmed" && (
                     <p className="mt-2 text-[13px] font-medium text-success">
                       This confirms your last answer wasn&apos;t a lucky guess.
@@ -450,7 +527,7 @@ export default function PracticePage() {
                     same-type problem (you answered <span className="font-mono">{answer}</span>)
                     reveals it might have been a lucky guess, not full understanding.
                   </p>
-                  <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">{result.feedbackText}</p>
+                  <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">{feedbackDisplay}</p>
                   {result.revealAnswer && (
                     <p className="mt-2 font-mono text-[13px] text-ink-soft">
                       Correct answer: <span className="text-ink">{result.correctAnswer}</span>
@@ -466,7 +543,7 @@ export default function PracticePage() {
                     {result.misconceptionName ? result.misconceptionName : "Not quite"} —{" "}
                     <span className="font-mono font-normal">{answer}</span>
                   </p>
-                  <p className="mt-1 text-[14px] leading-relaxed text-ink-soft">{result.feedbackText}</p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-ink-soft">{feedbackDisplay}</p>
                   {result.diagnosisSource === "ai" && (
                     <p className="mt-2 text-[13px] font-medium text-primary">
                       Diagnosed from your own reasoning.

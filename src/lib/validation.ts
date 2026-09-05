@@ -23,6 +23,22 @@ export const submitAnswerSchema = z.object({
   timeSpentMs: z.number().int().min(0).max(6 * 60 * 60 * 1000).optional(),
 });
 
+// /api/stream-feedback (prompt_v2.md A1) — called right after submit-answer,
+// with the context submit-answer already determined (misconceptionId,
+// outcome, etc.) rather than re-deriving it, so the same diagnosis/hint
+// prompt gets rebuilt exactly, just streamed this time.
+export const streamFeedbackSchema = z.object({
+  learnerId: learnerIdSchema,
+  problemId: z.string().min(1).max(200),
+  answer: z.string().min(1).max(200),
+  outcome: z.enum(["correct", "matched_misconception", "unrecognized"]),
+  // null for "unrecognized" (no misconception matched) or the correct-answer
+  // path when nothing needs a name; a real misconception id otherwise.
+  misconceptionId: z.string().max(100).nullable().optional(),
+  hintLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  recentMisconceptionNames: z.array(z.string().max(200)).max(5).optional(),
+});
+
 export const nextProblemQuerySchema = z.object({
   learnerId: learnerIdSchema,
   // Optional, defaults to "algebra" server-side (see learnerModel.ts's
