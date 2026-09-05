@@ -107,8 +107,7 @@ fundamentals (order of operations, negative numbers, the distributive property,
 combining like terms, solving linear equations) and introductory chemistry
 (dimensional analysis, mole ratios/stoichiometry) — switchable mid-session on
 `/practice`. Narrow on purpose within each subject rather than trying to cover
-everything; see RESEARCH/IDEA_SELECTION.md for why chemistry specifically, and
-why not a third.
+everything.
 
 ## How AI is used
 
@@ -215,7 +214,7 @@ npm test
   `npm start`, does not work on serverless hosts like Vercel (see the live demo note
   above) — would need a real database there.
 - 2 subjects, 7 concepts, 21 misconceptions total. Narrow scope within each subject
-  on purpose, not full coverage of either — see RESEARCH/IDEA_SELECTION.md.
+  on purpose, not full coverage of either.
 - No real student usage data behind any of this yet.
 - Restoring a backup on `/dashboard` replaces everything currently in this browser for
   the current learner id — it's a clean replace, not a merge, with a confirmation
