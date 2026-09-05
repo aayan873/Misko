@@ -86,6 +86,13 @@ export default function PracticePage() {
 
   const loadNextProblem = useCallback(async () => {
     if (!learnerId) return;
+    // Voice input isn't tied to the problem it started on — without this, moving
+    // to a new problem while still listening (or with a stray onresult firing
+    // after that) would append transcript text into the WRONG problem's shown-work
+    // field. speech.stop is a stable reference (see useSpeechToText's useCallback),
+    // so depending on it here doesn't cause this callback to change identity and
+    // re-fire the mount effect below.
+    speech.stop();
     setPhase("loading");
     setResult(null);
     setConfidence(null);
@@ -111,7 +118,13 @@ export default function PracticePage() {
       setErrorMsg(e instanceof Error ? e.message : "Something went wrong");
       setPhase("error");
     }
-  }, [learnerId]);
+    // speech.stop (not the whole speech object, which is a fresh object literal
+    // every render) is what's actually depended on, and it's a stable reference
+    // (useCallback with empty deps in useSpeechToText) — depending on all of
+    // `speech` here would make this callback's identity change every render and
+    // re-fire the mount effect below on every render, an infinite reload loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learnerId, speech.stop]);
 
   useEffect(() => {
     if (learnerId) loadNextProblem();

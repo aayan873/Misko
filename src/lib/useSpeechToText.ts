@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Thin wrapper around the browser's native SpeechRecognition API — no backend
@@ -20,6 +20,16 @@ export function useSpeechToText(onResult: (text: string) => void) {
   const stop = useCallback(() => {
     recognitionRef.current?.stop();
     setListening(false);
+  }, []);
+
+  // Navigating away from the page (or any consumer unmounting) while still
+  // listening would otherwise leave recognition running in the background —
+  // stray onresult/onend calls firing after the component that would use their
+  // result is already gone.
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
   }, []);
 
   const start = useCallback(() => {
