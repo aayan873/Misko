@@ -110,7 +110,14 @@ tested in isolation, repeatedly through this session's commit history.
 that fits the required structure and is grounded in a real recorded
 walkthrough (not invented dialogue) — the mechanic itself demos well because
 it's genuinely visual: a badge changes, then feedback names an exact earlier
-problem by its prompt text.
+problem by its prompt text. A `/teacher` class-wide view existed at one point
+in this project's history and was deliberately removed rather than kept —
+prompt.md is explicit about targeting one clear user, not everyone, and a
+second persona competing for attention in a 2-minute pitch would have worked
+against exactly this category. Worth naming as a positive decision, not just
+an absence: cutting a working, tested feature to protect the pitch's focus is
+a harder call than adding one, and it's the kind of restraint this category
+actually rewards.
 
 **Why this is the lowest, most uncertain estimate:** Nobody has actually
 recorded and watched the video yet. A script being well-written and a video
