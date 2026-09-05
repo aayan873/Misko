@@ -11,6 +11,7 @@ import ReasoningTrace from "@/components/ReasoningTrace";
 import { StatusIcon } from "@/components/GradeMarks";
 import MasteryDelta from "@/components/MasteryDelta";
 import MasteredStamp from "@/components/MasteredStamp";
+import CameraCapture from "@/components/CameraCapture";
 
 interface ClientProblem {
   id: string;
@@ -86,6 +87,7 @@ export default function PracticePage() {
   const [streak, setStreak] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
 
   const speech = useSpeechToText((transcript) => {
     setShownWork((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
@@ -228,12 +230,16 @@ export default function PracticePage() {
     }
   }
 
-  async function handlePhotoSelected(file: File) {
+  // Shared by both the file-picker path (handlePhotoSelected, below) and the
+  // live camera capture path (prompt_v2.md A2) — CameraCapture already resizes
+  // at the moment it draws the video frame to canvas, so it hands over a
+  // ready base64 string directly rather than going through resizeImageToBase64
+  // a second time.
+  async function transcribeImage(base64: string, mimeType: string) {
     if (!problem || !learnerId) return;
     setTranscribeError(null);
     setTranscribing(true);
     try {
-      const { base64, mimeType } = await resizeImageToBase64(file);
       const res = await fetch("/api/transcribe-work", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -257,6 +263,11 @@ export default function PracticePage() {
     } finally {
       setTranscribing(false);
     }
+  }
+
+  async function handlePhotoSelected(file: File) {
+    const { base64, mimeType } = await resizeImageToBase64(file);
+    await transcribeImage(base64, mimeType);
   }
 
   function tryAgainSameProblem() {
@@ -457,7 +468,7 @@ export default function PracticePage() {
 
                   <label className="flex cursor-pointer items-center gap-1.5 border border-border px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:border-primary hover:text-primary">
                     <span aria-hidden="true">📷</span>
-                    {transcribing ? "Reading…" : "Photo of your work"}
+                    {transcribing ? "Reading…" : "Upload a photo"}
                     <input
                       type="file"
                       accept="image/*"
@@ -471,6 +482,16 @@ export default function PracticePage() {
                       }}
                     />
                   </label>
+
+                  <button
+                    type="button"
+                    disabled={transcribing}
+                    onClick={() => setShowCamera(true)}
+                    className="flex items-center gap-1.5 border border-border px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+                  >
+                    <span aria-hidden="true">🎥</span>
+                    Use camera live
+                  </button>
                 </div>
                 {transcribeError && <p className="mt-1.5 text-[12px] text-danger">{transcribeError}</p>}
               </div>
@@ -586,6 +607,16 @@ export default function PracticePage() {
           </div>
         )}
       </div>
+
+      {showCamera && (
+        <CameraCapture
+          onClose={() => setShowCamera(false)}
+          onCapture={({ base64, mimeType }) => {
+            setShowCamera(false);
+            transcribeImage(base64, mimeType);
+          }}
+        />
+      )}
     </div>
   );
 }
