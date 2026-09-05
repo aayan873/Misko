@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import Nav from "@/components/Nav";
+import DeploymentNotice from "@/components/DeploymentNotice";
 import "./globals.css";
 
 // A characterful display face for headlines — deliberately not Inter/Space
@@ -50,6 +51,7 @@ export default function RootLayout({
       <body
         className={`${display.variable} ${plexSans.variable} ${plexMono.variable} font-body antialiased min-h-screen`}
       >
+        <DeploymentNotice />
         <Nav />
         <main>{children}</main>
       </body>
