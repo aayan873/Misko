@@ -12,6 +12,7 @@ import { StatusIcon } from "@/components/GradeMarks";
 import MasteryDelta from "@/components/MasteryDelta";
 import MasteredStamp from "@/components/MasteredStamp";
 import CameraCapture from "@/components/CameraCapture";
+import VisualProof, { VisualProofData } from "@/components/VisualProof";
 
 interface ClientProblem {
   id: string;
@@ -43,6 +44,11 @@ interface SubmitResult {
   diagnosisSource?: "rule" | "ai" | "similarity" | null;
   revealAnswer?: boolean;
   correctAnswer?: string;
+  // prompt_v2.md A4 — only present when the correct derivation is safe to
+  // show (a correct answer, or a wrong one past the reveal-answer hint
+  // level); null otherwise. Shape matches enough of ProblemInstance for
+  // VisualProof to render from, without needing the full cached object.
+  visualProof?: VisualProofData | null;
   steps: string[];
   /** See ARCHITECTURE.md "Catching the Correct Answer Trap" — set only when this
    *  submission resolved a silent confirmation round from an earlier correct answer. */
@@ -582,6 +588,15 @@ export default function PracticePage() {
                     </p>
                   )}
                 </div>
+              </div>
+            )}
+
+            {result.visualProof && (
+              <div className="mt-5 border-t border-border-soft pt-5">
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                  Worked out visually (no AI — just the verified math)
+                </p>
+                <VisualProof problem={result.visualProof} />
               </div>
             )}
 

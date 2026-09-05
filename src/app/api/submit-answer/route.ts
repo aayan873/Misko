@@ -22,6 +22,27 @@ import { checkRateLimit } from "@/lib/rateLimit";
 // concept's candidates are being checked (see textSimilarity.ts).
 const ALL_MISCONCEPTION_DESCRIPTIONS = MISCONCEPTIONS.map((m) => m.description);
 
+/**
+ * prompt_v2.md A4: the deterministic, non-AI diagram (VisualProof.tsx) needs
+ * the problem's real generation params (problem.meta) and correctAnswer to
+ * draw the actual derivation — both already secret-safe by the same rule
+ * `correctAnswer` itself follows here (only ever sent once the learner is
+ * allowed to see it), so this reuses that exact gate rather than introducing
+ * a second one.
+ */
+function visualProofPayload(problem: ReturnType<typeof getCachedProblem>) {
+  if (!problem) return null;
+  return {
+    conceptId: problem.conceptId,
+    targetMisconceptionId: problem.targetMisconceptionId,
+    promptText: problem.promptText,
+    answerType: problem.answerType,
+    correctAnswer: problem.correctAnswer,
+    distractorAnswer: problem.distractorAnswer,
+    meta: problem.meta,
+  };
+}
+
 // A real, billed-Gemini-call endpoint (classification only, as of prompt_v2.md
 // A1 — the actual hint/feedback TEXT generation moved to /api/stream-feedback
 // so it can stream; this route can still trigger one classification call:
@@ -151,6 +172,7 @@ export async function POST(req: NextRequest) {
       pMasteryAfter: afterMastery.p_mastery,
       masteredNow: afterMastery.mastered === 1,
       masteredBefore,
+      visualProof: visualProofPayload(problem),
       steps: [
         "Checked your answer against the known-correct value",
         "Correct",
@@ -269,6 +291,7 @@ export async function POST(req: NextRequest) {
     diagnosisSource,
     revealAnswer,
     correctAnswer: revealAnswer ? problem.correctAnswer : undefined,
+    visualProof: revealAnswer ? visualProofPayload(problem) : null,
     confirmationResolved: caughtOriginalPrompt ? "caught" : null,
     caughtOriginalPrompt,
     conceptName: getConcept(problem.conceptId).name,
