@@ -44,6 +44,8 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
   the same session — same diagnosis pipeline, same mastery gate, same AI layer, no
   code path forked for the second subject. Algebra I was the proof-of-concept domain,
   not the ceiling of what the architecture underneath it can cover.
+
+  ![Switching to Chemistry mid-session on /practice](screenshots/05-chemistry-subject-switch.png)
 - **Never gives away the answer.** Wrong answers get a Socratic hint (three escalating
   levels) aimed at the specific misconception, not the solution.
 - **Gates progress on actual mastery**, not just completing problems. Each concept's
@@ -78,6 +80,8 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
 - **`/compare` proves the personalization is real.** It seeds two learners with
   different histories, has both submit the same wrong answer to the same problem
   through the real backend, and shows their diagnoses come out different.
+
+  ![Both learner panels revealing their diagnoses in the same synced beat](screenshots/09-compare-synced-reveal.png)
 - **`/spot-the-mistake` flips the exercise around.** Instead of solving a problem,
   you're shown a step-by-step solution that gets it wrong on purpose (using the same
   misconception taxonomy) and have to find which step is the error — learning to
@@ -134,6 +138,8 @@ offline and committed as static data, not a live API call — so a learner can s
 own mistakes cluster by conceptual similarity, even across subjects. Four distinct
 techniques doing real work here, not one LLM call wearing different labels: prompting,
 BKT, TF-IDF, and embeddings + similarity layout.
+
+![The misconception similarity map — filled dots are mistakes you've made, sized by how often; faint rings are ones you haven't](screenshots/06-misconception-map.png)
 
 ## Tech
 
