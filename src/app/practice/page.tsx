@@ -594,7 +594,7 @@ export default function PracticePage() {
             {result.visualProof && (
               <div className="mt-5 border-t border-border-soft pt-5">
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
-                  Worked out visually (no AI — just the verified math)
+                  Worked out visually
                 </p>
                 <VisualProof problem={result.visualProof} />
               </div>
