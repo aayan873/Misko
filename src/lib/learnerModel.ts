@@ -9,6 +9,7 @@ import {
 import { CONCEPTS, ConceptId, getConcept } from "./domain/concepts";
 import { getMisconception } from "./domain/misconceptions";
 import {
+  Difficulty,
   generateProblem,
   generateProblemForMisconception,
   ProblemInstance,
@@ -187,6 +188,28 @@ export interface NextProblemResult {
   reasonType: ReasonType;
 }
 
+const DIFFICULTY_EASY_CEILING = 0.5;
+const DIFFICULTY_MEDIUM_CEILING = 0.85;
+
+/**
+ * Adaptive difficulty (prompt.md §7) — a concept's own current p_mastery
+ * decides how hard its numbers are (problemEngine.ts's Difficulty), so a
+ * learner three problems from mastering a concept sees meaningfully bigger
+ * numbers than one just starting it, and an already-mastered concept's
+ * spaced-review problems (p_mastery is always >= BKT_MASTERY_THRESHOLD by
+ * the time they fire) are always the hardest tier — testing that mastery
+ * holds up under harder numbers too, not just easier ones re-served forever.
+ */
+function difficultyForMastery(pMastery: number): Difficulty {
+  if (pMastery < DIFFICULTY_EASY_CEILING) return "easy";
+  if (pMastery < DIFFICULTY_MEDIUM_CEILING) return "medium";
+  return "hard";
+}
+
+function difficultyForConcept(learnerId: string, conceptId: ConceptId): Difficulty {
+  return difficultyForMastery(getConceptMastery(learnerId, conceptId).p_mastery);
+}
+
 /**
  * The mastery gate: decides what the learner sees next. This is where the
  * "two learners can get different experiences" behavior (prompt.md §9) actually
@@ -197,7 +220,10 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
   if (pending) {
     return {
       done: false,
-      problem: generateProblemForMisconception(pending.misconceptionId),
+      problem: generateProblemForMisconception(
+        pending.misconceptionId,
+        difficultyForConcept(learnerId, pending.conceptId)
+      ),
       reason: `Double-checking your last correct answer with a similar problem.`,
       reasonType: "confirmation",
     };
@@ -207,7 +233,10 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
   if (active) {
     return {
       done: false,
-      problem: generateProblemForMisconception(active.misconceptionId),
+      problem: generateProblemForMisconception(
+        active.misconceptionId,
+        difficultyForConcept(learnerId, active.conceptId)
+      ),
       reason: `Retargeting "${getMisconception(active.misconceptionId)?.name}" until resolved.`,
       reasonType: "retarget",
     };
@@ -220,7 +249,7 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
   if (due) {
     return {
       done: false,
-      problem: generateProblem(due),
+      problem: generateProblem(due, difficultyForConcept(learnerId, due)),
       reason: `Spaced review: making sure ${getConcept(due).name} actually stuck.`,
       reasonType: "spaced-review",
     };
@@ -236,7 +265,7 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
     if (review) {
       return {
         done: false,
-        problem: generateProblem(review),
+        problem: generateProblem(review, difficultyForConcept(learnerId, review)),
         reason: `Interleaved review: ${getConcept(review).name} (your weakest reviewed concept).`,
         reasonType: "review",
       };
@@ -245,7 +274,7 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
 
   return {
     done: false,
-    problem: generateProblem(frontier),
+    problem: generateProblem(frontier, difficultyForConcept(learnerId, frontier)),
     reason: `Frontier concept: ${getConcept(frontier).name}.`,
     reasonType: "frontier",
   };

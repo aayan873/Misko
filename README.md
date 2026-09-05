@@ -47,6 +47,13 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
   answer, not just on the dashboard later.
 - **Tracks confidence calibration.** You predict your confidence before answering, and
   the dashboard shows where that diverges from your actual accuracy.
+- **Adapts problem difficulty to your actual mastery**, not a fixed level forever. The
+  same misconception gets easier numbers early on and meaningfully bigger ones as your
+  mastery estimate for that concept climbs — a concept you've already mastered gets
+  its hardest numbers once it comes back for spaced review, so "mastered" actually
+  gets tested under harder conditions, not just re-served the same easy problems.
+- **Notices if you're rushing.** If your wrong answers are consistently coming in much
+  faster than your correct ones, the dashboard says so directly.
 - **Classifies freeform reasoning.** If your wrong answer doesn't match a known
   mistake pattern, you can write out how you solved it and Gemini classifies the
   misconception from your explanation instead of just the final number. You can also
@@ -117,8 +124,9 @@ phrasing. That tradeoff — and the test that caught it — is documented in the
 - A local TF-IDF + cosine-similarity classifier (`src/lib/domain/textSimilarity.ts`) as
   a no-API-key fallback for freeform misconception classification
 - Zod for input validation on every API route
-- Vitest, 115 tests covering the deterministic core, mastery gate, spaced review,
-  calibration, class-wide aggregation, export/import, AI fallback behavior, and input
+- Vitest, 261 tests covering the deterministic core, mastery gate, adaptive difficulty,
+  spaced review, calibration, class-wide aggregation, export/import, real HTTP route
+  behavior (rate limiting, validation, error paths), AI fallback behavior, and input
   validation
 
 ## Setup

@@ -221,6 +221,95 @@ describe("mastery gate", () => {
   });
 });
 
+describe("adaptive difficulty (prompt.md §7 — problem numbers scale with mastery, not fixed forever)", () => {
+  it("a brand-new learner (initial p_mastery 0.3) gets the easy tier on the frontier concept", () => {
+    const id = learnerId("diff1");
+    const next = decideNextProblem(id);
+    expect(next.problem?.meta.difficulty).toBe(1);
+  });
+
+  it("difficulty rises to medium once p_mastery crosses 0.5, without yet being mastered", () => {
+    const id = learnerId("diff2");
+    // DEFAULT_BKT_PARAMS climbs fast: a single correct answer from the 0.3
+    // prior already lands at ~0.69 (see EVALUATION.md's simulation), squarely
+    // in the [0.5, 0.85) medium band without yet being mastered.
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: null,
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+    });
+    const mastery = getConceptMastery(id, "order-of-operations");
+    expect(mastery.p_mastery).toBeGreaterThanOrEqual(0.5);
+    expect(mastery.p_mastery).toBeLessThan(0.85);
+    expect(mastery.mastered).toBe(0);
+    const next = decideNextProblem(id);
+    expect(next.problem?.meta.difficulty).toBe(2);
+  });
+
+  it("a mastered concept's spaced-review problems are always the hard tier", () => {
+    const id = learnerId("diff3");
+    const needed = Math.max(attemptsToCrossThreshold(), MASTERY_MIN_ATTEMPTS);
+    for (let i = 0; i < needed; i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "order-of-operations",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "x",
+        learnerAnswer: "y",
+      });
+    }
+    expect(getConceptMastery(id, "order-of-operations").mastered).toBe(1);
+    // Enough further activity on the next concept to cross the spaced-review
+    // due threshold — same technique as the "spaced review scheduling" tests below.
+    const dueAt = getConceptMastery(id, "order-of-operations").due_after_attempts as number;
+    let totalSoFar = store.raw.attempts.filter((a) => a.learner_id === id).length;
+    while (totalSoFar < dueAt) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "negative-numbers",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "filler",
+        learnerAnswer: "y",
+      });
+      totalSoFar += 1;
+    }
+    const next = decideNextProblem(id);
+    expect(next.reasonType).toBe("spaced-review");
+    expect(next.problem?.meta.difficulty).toBe(3);
+  });
+
+  it("a retargeted (post-slip) problem uses the concept's current difficulty, not a fixed tier", () => {
+    const id = learnerId("diff4");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+      diagnosisSource: "rule",
+    });
+    // Fresh concept, one wrong answer — still well below the 0.5 easy/medium
+    // boundary, so the retargeted retry should still be easy.
+    const next = decideNextProblem(id);
+    expect(next.reasonType).toBe("retarget");
+    expect(next.problem?.meta.difficulty).toBe(1);
+  });
+});
+
 describe("catching the Correct Answer Trap (pending confirmation)", () => {
   it("has no pending confirmation for a learner with no history", () => {
     const id = learnerId("trap1");

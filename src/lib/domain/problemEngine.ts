@@ -20,6 +20,28 @@ function randInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+/**
+ * Adaptive difficulty (prompt.md §7's "adaptive difficulty" / "cognitive-load
+ * adaptation") — before this, every problem for a given misconception used the
+ * exact same fixed number ranges regardless of how well the learner was doing,
+ * so a learner three problems from mastering a concept saw the identical kind
+ * of numbers as one just starting it. Difficulty is chosen by the caller
+ * (learnerModel.ts's decideNextProblem, from the target concept's current
+ * p_mastery — see difficultyForMastery) and only ever widens the UPPER bound
+ * of each generator's number ranges, never changes the underlying math or
+ * problem structure — a "hard" problem is the same kind of mistake, just with
+ * numbers that don't fit in working memory as easily.
+ */
+export type Difficulty = "easy" | "medium" | "hard";
+
+/** Numeric encoding of the difficulty actually used, stashed on meta (never
+ *  shown to the learner) so it's inspectable in tests without parsing prompt text. */
+const DIFFICULTY_META: Record<Difficulty, number> = { easy: 1, medium: 2, hard: 3 };
+
+function pick<T>(difficulty: Difficulty, easy: T, medium: T, hard: T): T {
+  return difficulty === "easy" ? easy : difficulty === "medium" ? medium : hard;
+}
+
 /** Normalizes a learner-submitted or generated answer for comparison. */
 export function normalizeAnswer(raw: string, type: AnswerType): string {
   if (type === "number") {
@@ -37,7 +59,7 @@ export function normalizeAnswer(raw: string, type: AnswerType): string {
     .replace(/x\^1(?!\d)/g, "x");
 }
 
-type Generator = () => ProblemInstance;
+type Generator = (difficulty: Difficulty) => ProblemInstance;
 
 function mkId(conceptId: ConceptId, misconceptionId: string): string {
   return `${conceptId}:${misconceptionId}:${Date.now()}:${Math.floor(Math.random() * 1e6)}`;
@@ -47,10 +69,11 @@ function mkId(conceptId: ConceptId, misconceptionId: string): string {
 // order-of-operations
 // ---------------------------------------------------------------------------
 
-const orderLeftToRight: Generator = () => {
-  const a = randInt(2, 9);
-  const b = randInt(2, 9);
-  const c = randInt(2, 9);
+const orderLeftToRight: Generator = (difficulty) => {
+  const max = pick(difficulty, 9, 14, 20);
+  const a = randInt(2, max);
+  const b = randInt(2, max);
+  const c = randInt(2, max);
   const correct = a + b * c;
   const distractor = (a + b) * c;
   return {
@@ -61,14 +84,15 @@ const orderLeftToRight: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b, c },
+    meta: { a, b, c, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const orderAddBeforeMult: Generator = () => {
-  const a = randInt(2, 9);
-  const b = randInt(2, 9);
-  const c = randInt(2, 9);
+const orderAddBeforeMult: Generator = (difficulty) => {
+  const max = pick(difficulty, 9, 14, 20);
+  const a = randInt(2, max);
+  const b = randInt(2, max);
+  const c = randInt(2, max);
   const correct = a * b + c;
   const distractor = a * (b + c);
   return {
@@ -79,13 +103,18 @@ const orderAddBeforeMult: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b, c },
+    meta: { a, b, c, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const orderExponentLast: Generator = () => {
-  const a = randInt(2, 9);
-  const b = randInt(2, 6);
+const orderExponentLast: Generator = (difficulty) => {
+  const aMax = pick(difficulty, 9, 14, 20);
+  // The exponent base gets a gentler scale-up than a plain addend would —
+  // b^2 grows quadratically, so even a modest widening here keeps "hard"
+  // squares in mental-math-with-scratch-paper range instead of absurd.
+  const bMax = pick(difficulty, 6, 8, 10);
+  const a = randInt(2, aMax);
+  const b = randInt(2, bMax);
   const correct = a + b * b;
   const distractor = (a + b) * (a + b);
   return {
@@ -96,7 +125,7 @@ const orderExponentLast: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b },
+    meta: { a, b, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
@@ -104,9 +133,10 @@ const orderExponentLast: Generator = () => {
 // negative-numbers
 // ---------------------------------------------------------------------------
 
-const negSubtractSign: Generator = () => {
-  const a = randInt(1, 12);
-  const b = randInt(1, 12);
+const negSubtractSign: Generator = (difficulty) => {
+  const max = pick(difficulty, 12, 20, 30);
+  const a = randInt(1, max);
+  const b = randInt(1, max);
   const correct = a + b;
   const distractor = a - b;
   return {
@@ -117,13 +147,14 @@ const negSubtractSign: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b },
+    meta: { a, b, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const negMultSign: Generator = () => {
-  const a = randInt(1, 12);
-  const b = randInt(1, 12);
+const negMultSign: Generator = (difficulty) => {
+  const max = pick(difficulty, 12, 18, 25);
+  const a = randInt(1, max);
+  const b = randInt(1, max);
   const correct = a * b;
   const distractor = -(a * b);
   return {
@@ -134,14 +165,14 @@ const negMultSign: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b },
+    meta: { a, b, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const negAddMagnitude: Generator = () => {
-  const a = randInt(1, 15);
-  let b = randInt(1, 15);
-  if (a === 0) b = randInt(1, 15);
+const negAddMagnitude: Generator = (difficulty) => {
+  const max = pick(difficulty, 15, 22, 30);
+  const a = randInt(1, max);
+  const b = randInt(1, max);
   const correct = a - b;
   const distractor = a + b;
   return {
@@ -152,7 +183,7 @@ const negAddMagnitude: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b },
+    meta: { a, b, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
@@ -160,10 +191,12 @@ const negAddMagnitude: Generator = () => {
 // distributing (arithmetic form of the distributive property)
 // ---------------------------------------------------------------------------
 
-const distNoMultiplySecond: Generator = () => {
-  const a = randInt(2, 9);
-  const b = randInt(1, 9);
-  const c = randInt(1, 9);
+const distNoMultiplySecond: Generator = (difficulty) => {
+  const aMax = pick(difficulty, 9, 12, 15);
+  const bcMax = pick(difficulty, 9, 12, 15);
+  const a = randInt(2, aMax);
+  const b = randInt(1, bcMax);
+  const c = randInt(1, bcMax);
   const correct = a * b + a * c;
   const distractor = a * b + c;
   return {
@@ -174,16 +207,18 @@ const distNoMultiplySecond: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b, c },
+    meta: { a, b, c, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const distAddInsteadMultiply: Generator = () => {
-  // b, c start at 2 (not 1): a=2,b=1,c=1 is the only integer case where
-  // a*b+a*c coincides with a+b+c, which would collide correct with distractor.
-  const a = randInt(2, 9);
-  const b = randInt(2, 9);
-  const c = randInt(2, 9);
+const distAddInsteadMultiply: Generator = (difficulty) => {
+  // b, c start at 2 (not 1) at every difficulty: a=2,b=1,c=1 is the only
+  // integer case where a*b+a*c coincides with a+b+c, which would collide
+  // correct with distractor — widening only the max keeps that safe.
+  const max = pick(difficulty, 9, 12, 15);
+  const a = randInt(2, max);
+  const b = randInt(2, max);
+  const c = randInt(2, max);
   const correct = a * b + a * c;
   const distractor = a + b + c;
   return {
@@ -194,13 +229,16 @@ const distAddInsteadMultiply: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b, c },
+    meta: { a, b, c, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const distSignError: Generator = () => {
-  const a = randInt(2, 9);
-  const b = randInt(2, 9);
+const distSignError: Generator = (difficulty) => {
+  const max = pick(difficulty, 9, 12, 15);
+  const a = randInt(2, max);
+  const b = randInt(2, max);
+  // c's range depends on b (must stay below it) — scales safely along with
+  // b's own wider max above, no separate tuning needed.
   const c = randInt(1, b - 1 >= 1 ? b - 1 : 1);
   const correct = -a * b + a * c;
   const distractor = -a * b - a * c;
@@ -212,7 +250,7 @@ const distSignError: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, b, c },
+    meta: { a, b, c, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
@@ -220,9 +258,10 @@ const distSignError: Generator = () => {
 // combining-like-terms (symbolic/expression answers)
 // ---------------------------------------------------------------------------
 
-const cltAddUnlike: Generator = () => {
-  const p = randInt(2, 9);
-  const q = randInt(2, 9);
+const cltAddUnlike: Generator = (difficulty) => {
+  const max = pick(difficulty, 9, 15, 25);
+  const p = randInt(2, max);
+  const q = randInt(2, max);
   return {
     id: mkId("combining-like-terms", "CLT_ADD_UNLIKE"),
     conceptId: "combining-like-terms",
@@ -231,13 +270,14 @@ const cltAddUnlike: Generator = () => {
     answerType: "expression",
     correctAnswer: normalizeAnswer(`${p}x+${q}y`, "expression"),
     distractorAnswer: normalizeAnswer(`${p + q}xy`, "expression"),
-    meta: { p, q },
+    meta: { p, q, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const cltExponentAdd: Generator = () => {
-  const p = randInt(2, 9);
-  const q = randInt(2, 9);
+const cltExponentAdd: Generator = (difficulty) => {
+  const max = pick(difficulty, 9, 15, 25);
+  const p = randInt(2, max);
+  const q = randInt(2, max);
   return {
     id: mkId("combining-like-terms", "CLT_EXPONENT_ADD"),
     conceptId: "combining-like-terms",
@@ -246,13 +286,14 @@ const cltExponentAdd: Generator = () => {
     answerType: "expression",
     correctAnswer: normalizeAnswer(`${p + q}x^2`, "expression"),
     distractorAnswer: normalizeAnswer(`${p + q}x^4`, "expression"),
-    meta: { p, q },
+    meta: { p, q, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const cltDropVariable: Generator = () => {
-  const p = randInt(2, 9);
-  const q = randInt(2, 9);
+const cltDropVariable: Generator = (difficulty) => {
+  const max = pick(difficulty, 9, 15, 25);
+  const p = randInt(2, max);
+  const q = randInt(2, max);
   return {
     id: mkId("combining-like-terms", "CLT_DROP_VARIABLE"),
     conceptId: "combining-like-terms",
@@ -261,7 +302,7 @@ const cltDropVariable: Generator = () => {
     answerType: "expression",
     correctAnswer: normalizeAnswer(`${p + q}x`, "expression"),
     distractorAnswer: normalizeAnswer(`${p + q}`, "expression"),
-    meta: { p, q },
+    meta: { p, q, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
@@ -269,9 +310,11 @@ const cltDropVariable: Generator = () => {
 // linear-equations
 // ---------------------------------------------------------------------------
 
-const eqWrongOperation: Generator = () => {
-  const b = randInt(2, 12);
-  const c = randInt(1, 20);
+const eqWrongOperation: Generator = (difficulty) => {
+  const bMax = pick(difficulty, 12, 18, 25);
+  const cMax = pick(difficulty, 20, 30, 45);
+  const b = randInt(2, bMax);
+  const c = randInt(1, cMax);
   const correct = c - b;
   const distractor = c + b;
   return {
@@ -282,13 +325,15 @@ const eqWrongOperation: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { b, c },
+    meta: { b, c, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const eqOneSideOnly: Generator = () => {
-  const b = randInt(2, 12);
-  const c = randInt(1, 20);
+const eqOneSideOnly: Generator = (difficulty) => {
+  const bMax = pick(difficulty, 12, 18, 25);
+  const cMax = pick(difficulty, 20, 30, 45);
+  const b = randInt(2, bMax);
+  const c = randInt(1, cMax);
   const correct = c - b;
   const distractor = c;
   return {
@@ -299,17 +344,20 @@ const eqOneSideOnly: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { b, c },
+    meta: { b, c, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
-const eqDividePartial: Generator = () => {
+const eqDividePartial: Generator = (difficulty) => {
+  const aMax = pick(difficulty, 6, 8, 10);
+  const kMax = pick(difficulty, 6, 9, 12);
+  const xMax = pick(difficulty, 9, 14, 18);
   let a: number, k: number, xTrue: number, d: number;
   let attempts = 0;
   do {
-    a = randInt(2, 6);
-    k = randInt(1, 6);
-    xTrue = randInt(1, 9);
+    a = randInt(2, aMax);
+    k = randInt(1, kMax);
+    xTrue = randInt(1, xMax);
     d = a * xTrue - a * k;
     attempts++;
   } while ((d <= 0 || k === xTrue) && attempts < 50);
@@ -324,7 +372,7 @@ const eqDividePartial: Generator = () => {
     answerType: "number",
     correctAnswer: normalizeAnswer(String(correct), "number"),
     distractorAnswer: normalizeAnswer(String(distractor), "number"),
-    meta: { a, c, d },
+    meta: { a, c, d, difficulty: DIFFICULTY_META[difficulty] },
   };
 };
 
@@ -356,16 +404,22 @@ export const GENERATORS_BY_MISCONCEPTION: Record<string, Generator> = {
   EQ_DIVIDE_PARTIAL: eqDividePartial,
 };
 
-/** Generates a random problem instance for the given concept. */
-export function generateProblem(conceptId: ConceptId): ProblemInstance {
+/** Generates a random problem instance for the given concept, at the given
+ *  difficulty (defaults to "medium" for callers that don't have a mastery
+ *  estimate to adapt from — e.g. tests, or contexts where difficulty isn't
+ *  the point, like Spot the Mistake's flawed walkthroughs). */
+export function generateProblem(conceptId: ConceptId, difficulty: Difficulty = "medium"): ProblemInstance {
   const generators = GENERATORS_BY_CONCEPT[conceptId];
   const generator = generators[randInt(0, generators.length - 1)];
-  return generator();
+  return generator(difficulty);
 }
 
 /** Generates a problem instance specifically targeting a given misconception. */
-export function generateProblemForMisconception(misconceptionId: string): ProblemInstance {
+export function generateProblemForMisconception(
+  misconceptionId: string,
+  difficulty: Difficulty = "medium"
+): ProblemInstance {
   const generator = GENERATORS_BY_MISCONCEPTION[misconceptionId];
   if (!generator) throw new Error(`No generator for misconception: ${misconceptionId}`);
-  return generator();
+  return generator(difficulty);
 }
