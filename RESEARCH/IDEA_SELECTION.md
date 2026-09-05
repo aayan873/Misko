@@ -1,7 +1,8 @@
 # Why this scope
 
-Why Misko is 5 concepts and 15 misconceptions instead of a general math tutor, and
-why Algebra I specifically. Referenced from `src/lib/domain/misconceptions.ts`.
+Why Misko started as 5 concepts and 15 misconceptions instead of a general math
+tutor, why Algebra I specifically, and (later) why a second subject was added
+rather than more algebra. Referenced from `src/lib/domain/misconceptions.ts`.
 
 ## Why a narrow domain instead of "all of math"
 
@@ -61,8 +62,54 @@ without the taxonomy itself becoming the unreliable part of the product.
   problem targets exactly one concept and one candidate misconception, so a wrong
   answer can be attributed to something specific. A problem mixing concepts would
   make a wrong answer ambiguous about which step actually failed.
-- **Geometry, statistics, or anything past Algebra I.** Not because they don't
-  have their own well-documented misconceptions — they do — but because covering
-  them well would mean repeating all of the authoring and verification work above
-  again per topic, and narrow-but-real was the priority over broad-but-shallow
-  for a hackathon-scoped submission.
+- **Geometry, statistics, or a third+ subject.** Not because they don't have
+  their own well-documented misconceptions — they do — but because covering
+  them well means repeating all of the authoring and verification work above
+  again per topic, and narrow-but-real stays the priority over broad-but-shallow.
+  Two subjects (below) was enough to prove the architecture generalizes; a third
+  would mostly repeat that proof, not add new evidence of it.
+
+## A second subject: chemistry
+
+Added later, once the core mechanic (confirmation-round catching, misconception
+diagnosis, BKT mastery) was solid, to answer a real risk: "Algebra I, 5 concepts"
+stated on its own sounds like a narrow study app, not proof of a general
+architecture. The fix wasn't "add more algebra" — that would still just be a
+bigger algebra app — it was picking a second, visibly different subject and
+seeing whether the *same* concept/misconception/problem-generator pattern
+(`src/lib/domain/`) held up without being rebuilt for it.
+
+**Chemistry (dimensional analysis + mole ratios/stoichiometry)** over the other
+candidate considered, physics kinematics: dimensional analysis has a small,
+well-documented, well-known misconception set (inverting a conversion factor,
+losing track of a chained conversion's direction, confusing a rate with a total)
+that maps directly onto the same "known-wrong-value ⇐ known-misconception"
+structure algebra already uses, with real, fixed physical constants (unit
+conversion factors) rather than invented numbers.
+
+**What this actually tested, and what it found:** adding `dimensional-analysis`
+and `mole-ratios` (`src/lib/domain/concepts.ts`) required zero changes to
+`analyzer.ts`, `bkt.ts`, or the Gemini layer — the diagnosis/mastery pipeline
+genuinely doesn't know or care what subject a concept belongs to. It did require
+a real, honest refactor: `learnerModel.ts`'s concept-*selection* functions
+(`frontierConcept`, `dueForReview`, `weakestReviewableConcept`,
+`decideNextProblem`, and the pending-confirmation/active-misconception lookups)
+previously assumed "every concept this learner has ever touched" was one
+undifferentiated pool — fine when there was only one subject, silently wrong
+once a second one existed (a chemistry confirmation-round check could otherwise
+have surfaced while the learner was practicing algebra). Making those functions
+subject-aware, with subjects as fully independent frontiers — mastering all of
+algebra is never a prerequisite for starting chemistry, or vice versa — is a
+real, bounded, subject-scoping change, not a rewrite of the core mechanic. That
+distinction (what stayed generic vs. what genuinely needed to change) is the
+honest version of "prove it's an architecture," not a blanket "no changes
+needed" claim that wouldn't have survived a second subject actually being built.
+
+Two chemistry concepts, three misconceptions each — the same 3-per-concept shape
+as every algebra concept, for the same reason: enough to be a real taxonomy, not
+so many that authoring/verification quality slips. A subject switcher on
+`/practice` lets a learner move between algebra and chemistry in the same
+session, which is also the actual demo moment this unlocks: solve an algebra
+problem, catch a misconception, switch subjects, solve a chemistry problem, catch
+a different misconception — same engine, same UI, same AI layer, no code path
+forked for the new subject.

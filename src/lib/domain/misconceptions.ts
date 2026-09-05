@@ -120,6 +120,54 @@ export const MISCONCEPTIONS: Misconception[] = [
     description:
       "When isolating a variable with a coefficient after an addition/subtraction step, divides only the variable term's coefficient and forgets to divide the constant on the other side, or vice versa.",
   },
+  // -------------------------------------------------------------------------
+  // chemistry — the second subject (RESEARCH/IDEA_SELECTION.md "A second
+  // subject: chemistry"). Same taxonomy shape as algebra: a curated,
+  // well-documented set of wrong-reasoning patterns, each mapped to a
+  // mechanically-computable distractor value.
+  // -------------------------------------------------------------------------
+  {
+    id: "DIM_INVERTED_FACTOR",
+    conceptId: "dimensional-analysis",
+    name: "Inverts the conversion factor",
+    description:
+      "Divides by the conversion factor instead of multiplying (or vice versa), effectively using its reciprocal.",
+  },
+  {
+    id: "DIM_CHAINED_DIRECTION",
+    conceptId: "dimensional-analysis",
+    name: "Wrong direction on a chained conversion",
+    description:
+      "When converting through an intermediate unit, multiplies by the first factor but divides by the second instead of also multiplying, reversing the second step's direction.",
+  },
+  {
+    id: "DIM_WRONG_QUANTITY",
+    conceptId: "dimensional-analysis",
+    name: "Confuses the rate with the total",
+    description:
+      "Multiplies the total quantity by the per-unit rate instead of dividing by it, confusing which value is the rate and which is the total being converted.",
+  },
+  {
+    id: "MOLE_RATIO_INVERTED",
+    conceptId: "mole-ratios",
+    name: "Inverts the stoichiometric ratio",
+    description:
+      "Uses the reciprocal of the balanced equation's mole ratio, e.g. multiplying by (given's coefficient / target's coefficient) instead of (target's coefficient / given's coefficient).",
+  },
+  {
+    id: "MOLE_RATIO_IGNORED",
+    conceptId: "mole-ratios",
+    name: "Ignores the stoichiometric coefficients",
+    description:
+      "Treats the mole ratio between two substances as 1:1, carrying the given mole value straight across regardless of the balanced equation's actual coefficients.",
+  },
+  {
+    id: "MOLE_RATIO_PARTIAL",
+    conceptId: "mole-ratios",
+    name: "Applies only one coefficient",
+    description:
+      "Divides by the target substance's coefficient but never multiplies by the given substance's coefficient, applying only half of the required ratio.",
+  },
 ];
 
 export function getMisconception(id: string): Misconception | undefined {

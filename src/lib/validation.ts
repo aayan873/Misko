@@ -3,6 +3,7 @@ import { z } from "zod";
 // Learner ids are client-generated UUIDs (crypto.randomUUID()) — no auth/PII collected,
 // see prompt.md §19 (avoid unnecessary personal data collection).
 export const learnerIdSchema = z.string().uuid();
+export const subjectEnum = z.enum(["algebra", "chemistry"]);
 
 export const submitAnswerSchema = z.object({
   learnerId: learnerIdSchema,
@@ -24,6 +25,10 @@ export const submitAnswerSchema = z.object({
 
 export const nextProblemQuerySchema = z.object({
   learnerId: learnerIdSchema,
+  // Optional, defaults to "algebra" server-side (see learnerModel.ts's
+  // DEFAULT_SUBJECT) — older client code and every existing test that doesn't
+  // send this keeps working exactly as before.
+  subject: subjectEnum.optional(),
 });
 
 export const learnerCreateSchema = z.object({
@@ -73,6 +78,8 @@ const conceptIdEnum = z.enum([
   "distributing",
   "combining-like-terms",
   "linear-equations",
+  "dimensional-analysis",
+  "mole-ratios",
 ]);
 const diagnosisSourceEnum = z.enum(["rule", "ai", "similarity"]).nullable();
 const zeroOrOne = z.union([z.literal(0), z.literal(1)]);

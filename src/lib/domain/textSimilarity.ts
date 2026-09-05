@@ -78,12 +78,28 @@ export interface SimilarityResult {
 // materially worse failure mode than returning no match at all — it's this
 // app's own stated principle (see the AI classifier's system prompt: "a
 // missed check is far better than falsely doubting a student") applied to
-// this technique too. 0.35 sits with real margin above every false-positive
-// observed in testing; the tradeoff is real: it only catches clear-cut,
-// close-to-verbatim phrasing, not genuine paraphrase understanding — that's
-// the honest ceiling of bag-of-words similarity on single-sentence text with
-// one example per class, not a bug to fix later.
-const SIMILARITY_THRESHOLD = 0.35;
+// this technique too.
+//
+// Raised again, from 0.35 to 0.38, when adding the chemistry misconceptions
+// (RESEARCH/IDEA_SELECTION.md): IDF is computed from the WHOLE taxonomy
+// corpus (see classifyByTextSimilarity's doc comment), so adding 6 new
+// descriptions shifted term weights for every existing misconception too —
+// "subtracting a negative number so I just dropped both negative signs"
+// (textbook NEG_SUBTRACT_SIGN) scored 0.3329 against the wrong candidate
+// (NEG_MULT_SIGN) even in the original 15-misconception corpus, already
+// dangerously close under the old 0.35 threshold; the chemistry corpus
+// addition nudged it to 0.3548, over the line. This wasn't a fluke of one
+// change — it's the underlying fragility of a fixed threshold against a
+// growing, shared corpus, so the fix is a threshold with real margin against
+// BOTH the current worst-known false-positive (0.3548) and the weakest
+// currently-required true positive (NEG_MULT_SIGN's own dedicated test case,
+// 0.4085) — 0.38 sits roughly at the midpoint, ~0.025 of margin on each side.
+// The tradeoff is unchanged: this only catches clear-cut, close-to-verbatim
+// phrasing, not genuine paraphrase understanding — the honest ceiling of
+// bag-of-words similarity on single-sentence text with one example per
+// class, not a bug to fix later. Whoever adds an 8th subject should expect
+// to re-run this same check, not assume today's margin is permanent.
+const SIMILARITY_THRESHOLD = 0.38;
 
 /**
  * Classifies student-written text against a small set of misconception

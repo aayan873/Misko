@@ -37,7 +37,13 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
   solid.
 - **Diagnoses the specific misconception** behind a wrong answer (e.g. "you applied
   left-to-right evaluation instead of operator precedence"), not just that it's wrong —
-  matched against a taxonomy of 15 misconceptions across 5 Algebra I concepts.
+  matched against a curated taxonomy of named misconceptions.
+- **Works across subjects, not just Algebra I.** A subject switcher on `/practice`
+  moves between Algebra I (15 misconceptions across 5 concepts) and chemistry
+  (dimensional analysis and mole ratios, 6 more misconceptions across 2 concepts) in
+  the same session — same diagnosis pipeline, same mastery gate, same AI layer, no
+  code path forked for the second subject. Algebra I was the proof-of-concept domain,
+  not the ceiling of what the architecture underneath it can cover.
 - **Never gives away the answer.** Wrong answers get a Socratic hint (three escalating
   levels) aimed at the specific misconception, not the solution.
 - **Gates progress on actual mastery**, not just completing problems. Each concept's
@@ -83,9 +89,13 @@ sophisticated AI tutors miss flawed reasoning hiding behind a right number.
 
 ## Who it's for
 
-High school / early college students learning Algebra I fundamentals: order of
-operations, negative numbers, the distributive property, combining like terms, solving
-linear equations. Narrow on purpose rather than trying to cover everything.
+High school / early college students. Two subjects right now — Algebra I
+fundamentals (order of operations, negative numbers, the distributive property,
+combining like terms, solving linear equations) and introductory chemistry
+(dimensional analysis, mole ratios/stoichiometry) — switchable mid-session on
+`/practice`. Narrow on purpose within each subject rather than trying to cover
+everything; see RESEARCH/IDEA_SELECTION.md for why chemistry specifically, and
+why not a third.
 
 ## How AI is used
 
@@ -175,7 +185,8 @@ npm test
 - The JSON-file store needs one long-running process. Works fine with `npm run dev` /
   `npm start`, does not work on serverless hosts like Vercel (see the live demo note
   above) — would need a real database there.
-- 5 concepts, 15 misconceptions. Narrow scope on purpose, not full subject coverage.
+- 2 subjects, 7 concepts, 21 misconceptions total. Narrow scope within each subject
+  on purpose, not full coverage of either — see RESEARCH/IDEA_SELECTION.md.
 - No real student usage data behind any of this yet.
 - Restoring a backup on `/dashboard` replaces everything currently in this browser for
   the current learner id — it's a clean replace, not a merge, with a confirmation

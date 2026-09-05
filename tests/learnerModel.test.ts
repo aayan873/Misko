@@ -307,6 +307,153 @@ describe("adaptive difficulty (prompt.md §7 — problem numbers scale with mast
   });
 });
 
+describe("second subject: chemistry (subject-scoping)", () => {
+  it("frontierConcept defaults to algebra, and chemistry has its own independent frontier", () => {
+    const id = learnerId("subj1");
+    expect(frontierConcept(id)).toBe("order-of-operations"); // default, unchanged behavior
+    expect(frontierConcept(id, "algebra")).toBe("order-of-operations");
+    expect(frontierConcept(id, "chemistry")).toBe("dimensional-analysis");
+  });
+
+  it("mastering all of algebra is not a prerequisite for chemistry, or vice versa", () => {
+    const id = learnerId("subj2");
+    // Master chemistry's first concept without ever touching algebra.
+    const needed = Math.max(attemptsToCrossThreshold(), MASTERY_MIN_ATTEMPTS);
+    for (let i = 0; i < needed; i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "dimensional-analysis",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "x",
+        learnerAnswer: "y",
+      });
+    }
+    expect(getConceptMastery(id, "dimensional-analysis").mastered).toBe(1);
+    // Algebra's frontier is completely unaffected — still its own first concept.
+    expect(frontierConcept(id, "algebra")).toBe("order-of-operations");
+    // Chemistry has advanced to its own second concept.
+    expect(frontierConcept(id, "chemistry")).toBe("mole-ratios");
+  });
+
+  it("decideNextProblem only serves problems from the requested subject", () => {
+    const id = learnerId("subj3");
+    const algebraNext = decideNextProblem(id, "algebra");
+    expect(algebraNext.problem?.conceptId).toBe("order-of-operations");
+    const chemNext = decideNextProblem(id, "chemistry");
+    expect(chemNext.problem?.conceptId).toBe("dimensional-analysis");
+  });
+
+  it("a pending confirmation in one subject never leaks into decideNextProblem for the other subject", () => {
+    const id = learnerId("subj4");
+    // Wrong then correct on chemistry, raising a rule-based confirmation suspicion.
+    recordAttempt({
+      learnerId: id,
+      conceptId: "dimensional-analysis",
+      misconceptionId: "DIM_WRONG_QUANTITY",
+      outcome: "matched_misconception",
+      confidenceBefore: 4,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+      diagnosisSource: "rule",
+    });
+    recordAttempt({
+      learnerId: id,
+      conceptId: "dimensional-analysis",
+      misconceptionId: "DIM_WRONG_QUANTITY",
+      outcome: "correct",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "y",
+      learnerAnswer: "z",
+      confirmationStatus: "pending",
+    });
+    expect(pendingConfirmation(id, "chemistry")?.misconceptionId).toBe("DIM_WRONG_QUANTITY");
+    // The pending flag is real (unscoped lookup finds it), but algebra's own
+    // decideNextProblem must never surface it — a chemistry confirmation round
+    // appearing while the learner thinks they're doing algebra would be exactly
+    // the cross-subject leak this scoping exists to prevent.
+    expect(pendingConfirmation(id)?.misconceptionId).toBe("DIM_WRONG_QUANTITY");
+    const algebraNext = decideNextProblem(id, "algebra");
+    expect(algebraNext.reasonType).not.toBe("confirmation");
+    expect(algebraNext.problem?.conceptId).toBe("order-of-operations");
+    // Chemistry's own decideNextProblem DOES see it.
+    const chemNext = decideNextProblem(id, "chemistry");
+    expect(chemNext.reasonType).toBe("confirmation");
+    expect(chemNext.problem?.targetMisconceptionId).toBe("DIM_WRONG_QUANTITY");
+  });
+
+  it("an active (unresolved) misconception in one subject doesn't force a retarget in the other", () => {
+    const id = learnerId("subj5");
+    recordAttempt({
+      learnerId: id,
+      conceptId: "order-of-operations",
+      misconceptionId: "ORDER_LEFT_TO_RIGHT",
+      outcome: "matched_misconception",
+      confidenceBefore: 3,
+      hintLevelUsed: 1,
+      problemPrompt: "x",
+      learnerAnswer: "y",
+      diagnosisSource: "rule",
+    });
+    // Algebra correctly retargets its own unresolved misconception.
+    expect(decideNextProblem(id, "algebra").reasonType).toBe("retarget");
+    // Chemistry is untouched and unaffected — plain frontier, not a retarget.
+    const chemNext = decideNextProblem(id, "chemistry");
+    expect(chemNext.reasonType).toBe("frontier");
+    expect(chemNext.problem?.conceptId).toBe("dimensional-analysis");
+  });
+
+  it("spaced review and interleaving stay within the requested subject", () => {
+    const id = learnerId("subj6");
+    // Master chemistry's dimensional-analysis concept to make it reviewable.
+    const needed = Math.max(attemptsToCrossThreshold(), MASTERY_MIN_ATTEMPTS);
+    for (let i = 0; i < needed; i++) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "dimensional-analysis",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "x",
+        learnerAnswer: "y",
+      });
+    }
+    const dueAt = getConceptMastery(id, "dimensional-analysis").due_after_attempts as number;
+    // Push chemistry's own attempt count past its own due threshold, on its
+    // OWN second concept (mole-ratios), not algebra — algebra must never see
+    // a spaced-review problem for a concept it has no history with at all.
+    let total = getAllMastery(id)
+      .filter((m) => m.concept_id === "dimensional-analysis" || m.concept_id === "mole-ratios")
+      .reduce((sum, m) => sum + m.attempts, 0);
+    while (total < dueAt) {
+      recordAttempt({
+        learnerId: id,
+        conceptId: "mole-ratios",
+        misconceptionId: null,
+        outcome: "correct",
+        confidenceBefore: 3,
+        hintLevelUsed: 1,
+        problemPrompt: "filler",
+        learnerAnswer: "y",
+      });
+      total += 1;
+    }
+    const chemNext = decideNextProblem(id, "chemistry");
+    expect(chemNext.reasonType).toBe("spaced-review");
+    expect(chemNext.problem?.conceptId).toBe("dimensional-analysis");
+    // Algebra has zero history for this learner — must be a plain frontier
+    // problem, never a spaced-review of a concept it never touched.
+    const algebraNext = decideNextProblem(id, "algebra");
+    expect(algebraNext.reasonType).toBe("frontier");
+    expect(algebraNext.problem?.conceptId).toBe("order-of-operations");
+  });
+});
+
 describe("catching the Correct Answer Trap (pending confirmation)", () => {
   it("has no pending confirmation for a learner with no history", () => {
     const id = learnerId("trap1");

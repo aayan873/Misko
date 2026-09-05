@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useLearnerId } from "@/lib/useLearnerId";
+import { useSubject } from "@/lib/useSubject";
+import { SUBJECTS } from "@/lib/domain/concepts";
 import { useSpeechToText } from "@/lib/useSpeechToText";
 import { useProblemTimer } from "@/lib/useProblemTimer";
 import { resizeImageToBase64 } from "@/lib/resizeImage";
@@ -60,6 +62,7 @@ type Phase =
 
 export default function PracticePage() {
   const learnerId = useLearnerId();
+  const [subject, setSubject] = useSubject();
   const [phase, setPhase] = useState<Phase>("loading");
   const [problem, setProblem] = useState<ClientProblem | null>(null);
   const [reason, setReason] = useState<string>("");
@@ -102,7 +105,7 @@ export default function PracticePage() {
     setHintLevel(1);
     setTranscribeError(null);
     try {
-      const res = await fetch(`/api/next-problem?learnerId=${learnerId}`);
+      const res = await fetch(`/api/next-problem?learnerId=${learnerId}&subject=${subject}`);
       if (!res.ok) throw new Error("Failed to load problem");
       const data = await res.json();
       if (data.done) {
@@ -124,7 +127,7 @@ export default function PracticePage() {
     // `speech` here would make this callback's identity change every render and
     // re-fire the mount effect below on every render, an infinite reload loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [learnerId, speech.stop]);
+  }, [learnerId, subject, speech.stop]);
 
   useEffect(() => {
     if (learnerId) loadNextProblem();
@@ -210,9 +213,30 @@ export default function PracticePage() {
     );
   }
 
+  const subjectSwitcher = (
+    <div className="mb-5 flex gap-1.5" role="tablist" aria-label="Subject">
+      {SUBJECTS.map((s) => (
+        <button
+          key={s.id}
+          role="tab"
+          aria-selected={subject === s.id}
+          onClick={() => setSubject(s.id)}
+          className={`rounded-full border px-3 py-1 text-[12.5px] font-medium transition-colors ${
+            subject === s.id
+              ? "border-primary bg-primary-wash text-primary"
+              : "border-border text-ink-faint hover:text-ink-soft"
+          }`}
+        >
+          {s.name}
+        </button>
+      ))}
+    </div>
+  );
+
   if (phase === "error") {
     return (
       <div className="mx-auto max-w-[700px] px-4 sm:px-8 py-24 text-center" role="alert">
+        {subjectSwitcher}
         <p className="text-danger">{errorMsg}</p>
         <button className="btn-secondary mt-6" onClick={loadNextProblem}>
           Try again
@@ -224,7 +248,10 @@ export default function PracticePage() {
   if (phase === "done") {
     return (
       <div className="mx-auto max-w-[700px] px-4 sm:px-8 py-24 text-center">
-        <h1 className="font-display text-2xl font-semibold text-ink">All concepts mastered</h1>
+        {subjectSwitcher}
+        <h1 className="font-display text-2xl font-semibold text-ink">
+          All {SUBJECTS.find((s) => s.id === subject)?.name} concepts mastered
+        </h1>
         <p className="mt-3 text-ink-soft">{reason}</p>
         <a href="/dashboard" className="btn-primary mt-8 inline-flex">
           View your learning model
@@ -237,6 +264,7 @@ export default function PracticePage() {
 
   return (
     <div className="mx-auto max-w-[700px] px-4 sm:px-8 py-16">
+      {subjectSwitcher}
       <div className="mb-6 flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2.5">
           {REASON_BADGES[reasonType].label && (

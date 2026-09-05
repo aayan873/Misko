@@ -5,12 +5,15 @@ import { nextProblemQuerySchema } from "@/lib/validation";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const parsed = nextProblemQuerySchema.safeParse({ learnerId: searchParams.get("learnerId") });
+  const parsed = nextProblemQuerySchema.safeParse({
+    learnerId: searchParams.get("learnerId"),
+    subject: searchParams.get("subject") ?? undefined,
+  });
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid or missing learnerId" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const result = decideNextProblem(parsed.data.learnerId);
+  const result = decideNextProblem(parsed.data.learnerId, parsed.data.subject);
   if (result.done || !result.problem) {
     return NextResponse.json({ done: true, reason: result.reason, reasonType: result.reasonType });
   }

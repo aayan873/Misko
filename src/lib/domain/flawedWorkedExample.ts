@@ -229,6 +229,94 @@ const eqDividePartial: Builder = (p) => {
 };
 
 // ---------------------------------------------------------------------------
+// chemistry
+//
+// Unlike every algebra distractor above (all clean integers by construction),
+// several of these involve division and aren't guaranteed integers (e.g. a/k).
+// Using p.distractorAnswer directly for the final displayed value — rather
+// than recomputing the division here and risking a floating-point-formatting
+// mismatch against normalizeAnswer's rounded string — guarantees the
+// walkthrough's last step matches exactly what the app would actually grade
+// as the distractor, which is what flawedWorkedExample.test.ts checks.
+// ---------------------------------------------------------------------------
+
+const dimInvertedFactor: Builder = (p) => {
+  const { a, k } = p.meta;
+  return {
+    problemText: p.promptText,
+    steps: [
+      { text: `${a} × (conversion factor ${k})` },
+      { text: `Divide by the conversion factor instead of multiplying: ${a} ÷ ${k} = ${p.distractorAnswer}` },
+    ],
+    flawedStepIndex: 1,
+  };
+};
+
+const dimChainedDirection: Builder = (p) => {
+  const { a, k1, k2 } = p.meta;
+  const afterFirst = a * k1;
+  return {
+    problemText: p.promptText,
+    steps: [
+      { text: `First conversion: ${a} × ${k1} = ${afterFirst}` },
+      { text: `Divide by the second factor instead of multiplying: ${afterFirst} ÷ ${k2} = ${p.distractorAnswer}` },
+    ],
+    flawedStepIndex: 1,
+  };
+};
+
+const dimWrongQuantity: Builder = (p) => {
+  const { r, t } = p.meta;
+  return {
+    problemText: p.promptText,
+    steps: [
+      { text: `${t} grams total, ${r} grams per liter` },
+      { text: `Multiply the total by the rate instead of dividing by it: ${t} × ${r} = ${p.distractorAnswer}` },
+    ],
+    flawedStepIndex: 1,
+  };
+};
+
+const moleRatioInverted: Builder = (p) => {
+  const { a, b, k } = p.meta;
+  const n = a * k;
+  return {
+    problemText: p.promptText,
+    steps: [
+      { text: `${n} moles of X` },
+      { text: `Use the ratio ${a}/${b} instead of ${b}/${a}: ${n} × (${a}/${b}) = ${p.distractorAnswer}` },
+    ],
+    flawedStepIndex: 1,
+  };
+};
+
+const moleRatioIgnored: Builder = (p) => {
+  const { a, k } = p.meta;
+  const n = a * k;
+  return {
+    problemText: p.promptText,
+    steps: [
+      { text: `${n} moles of X` },
+      { text: `Treat the mole ratio as 1:1: ${p.distractorAnswer} moles of Y needed` },
+    ],
+    flawedStepIndex: 1,
+  };
+};
+
+const moleRatioPartial: Builder = (p) => {
+  const { a, b, k } = p.meta;
+  const n = a * k;
+  return {
+    problemText: p.promptText,
+    steps: [
+      { text: `${n} moles of X` },
+      { text: `Divide by Y's coefficient only, without multiplying by X's: ${n} ÷ ${b} = ${p.distractorAnswer}` },
+    ],
+    flawedStepIndex: 1,
+  };
+};
+
+// ---------------------------------------------------------------------------
 
 const BUILDERS_BY_MISCONCEPTION: Record<string, Builder> = {
   ORDER_LEFT_TO_RIGHT: orderLeftToRight,
@@ -246,6 +334,12 @@ const BUILDERS_BY_MISCONCEPTION: Record<string, Builder> = {
   EQ_WRONG_OPERATION: eqWrongOperation,
   EQ_ONE_SIDE_ONLY: eqOneSideOnly,
   EQ_DIVIDE_PARTIAL: eqDividePartial,
+  DIM_INVERTED_FACTOR: dimInvertedFactor,
+  DIM_CHAINED_DIRECTION: dimChainedDirection,
+  DIM_WRONG_QUANTITY: dimWrongQuantity,
+  MOLE_RATIO_INVERTED: moleRatioInverted,
+  MOLE_RATIO_IGNORED: moleRatioIgnored,
+  MOLE_RATIO_PARTIAL: moleRatioPartial,
 };
 
 /** Builds a flawed step-by-step walkthrough that arrives at the problem's known

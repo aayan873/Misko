@@ -16,16 +16,23 @@ around.
 
 ## What we built
 
-Misko is an Algebra I tutor that never trusts a single correct answer as proof
-of understanding. If a correct answer's reasoning looks shaky, it quietly gives
-a second, different problem to check — and only says something if the
-understanding doesn't actually hold up on that second, independently graded
-problem. Wrong answers get diagnosed against a taxonomy of 15 named
-misconceptions across 5 concepts (order of operations, negative numbers, the
-distributive property, combining like terms, linear equations), not just
-marked wrong. Mastery is a live Bayesian probability estimate, not a streak
-counter, and problem difficulty scales with it — easier numbers early, harder
-ones as mastery climbs, hardest once a concept is due for spaced review.
+Misko is a misconception-diagnosing tutor that never trusts a single correct
+answer as proof of understanding. If a correct answer's reasoning looks shaky,
+it quietly gives a second, different problem to check — and only says
+something if the understanding doesn't actually hold up on that second,
+independently graded problem. Wrong answers get diagnosed against a curated
+taxonomy of named misconceptions, not just marked wrong. Mastery is a live
+Bayesian probability estimate, not a streak counter, and problem difficulty
+scales with it — easier numbers early, harder ones as mastery climbs, hardest
+once a concept is due for spaced review.
+
+Algebra I was the pilot domain (order of operations, negative numbers, the
+distributive property, combining like terms, linear equations — 15
+misconceptions), not the ceiling: the same architecture now also covers
+chemistry (dimensional analysis and mole ratios/stoichiometry, 6 more
+misconceptions), switchable mid-session on `/practice`, with zero changes to
+the diagnosis, mastery, or AI layers to add it — see RESEARCH/IDEA_SELECTION.md
+"A second subject: chemistry" for exactly what did and didn't need to change.
 
 ## How it works
 

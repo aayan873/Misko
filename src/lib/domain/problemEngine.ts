@@ -377,6 +377,157 @@ const eqDividePartial: Generator = (difficulty) => {
 };
 
 // ---------------------------------------------------------------------------
+// chemistry — the second subject (RESEARCH/IDEA_SELECTION.md "A second
+// subject: chemistry"). Same generator pattern as every algebra concept
+// above: a known-correct answer and a known distractor computed the same
+// way every time, difficulty-scaled the same way. Real conversion factors
+// (60 min/hr, 1000 g/kg, etc.), not made-up numbers, since these are actual
+// physical constants, not something to randomize.
+// ---------------------------------------------------------------------------
+
+const UNIT_PAIRS = [
+  { from: "hours", to: "minutes", k: 60 },
+  { from: "minutes", to: "seconds", k: 60 },
+  { from: "meters", to: "centimeters", k: 100 },
+  { from: "kilograms", to: "grams", k: 1000 },
+  { from: "liters", to: "milliliters", k: 1000 },
+];
+
+const CHAIN_TRIPLES = [
+  { u1: "hours", u2: "minutes", u3: "seconds", k1: 60, k2: 60 },
+  { u1: "kilometers", u2: "meters", u3: "centimeters", k1: 1000, k2: 100 },
+  { u1: "kilograms", u2: "grams", u3: "milligrams", k1: 1000, k2: 1000 },
+];
+
+function pickOne<T>(arr: T[]): T {
+  return arr[randInt(0, arr.length - 1)];
+}
+
+const dimInvertedFactor: Generator = (difficulty) => {
+  const { from, to, k } = pickOne(UNIT_PAIRS);
+  const aMax = pick(difficulty, 9, 20, 40);
+  const a = randInt(2, aMax);
+  const correct = a * k;
+  const distractor = a / k;
+  return {
+    id: mkId("dimensional-analysis", "DIM_INVERTED_FACTOR"),
+    conceptId: "dimensional-analysis",
+    targetMisconceptionId: "DIM_INVERTED_FACTOR",
+    promptText: `Convert ${a} ${from} to ${to} (1 ${from.slice(0, -1)} = ${k} ${to}).`,
+    answerType: "number",
+    correctAnswer: normalizeAnswer(String(correct), "number"),
+    distractorAnswer: normalizeAnswer(String(distractor), "number"),
+    meta: { a, k, difficulty: DIFFICULTY_META[difficulty] },
+  };
+};
+
+const dimChainedDirection: Generator = (difficulty) => {
+  const { u1, u2, u3, k1, k2 } = pickOne(CHAIN_TRIPLES);
+  const aMax = pick(difficulty, 9, 20, 40);
+  const a = randInt(2, aMax);
+  const correct = a * k1 * k2;
+  const distractor = (a * k1) / k2;
+  return {
+    id: mkId("dimensional-analysis", "DIM_CHAINED_DIRECTION"),
+    conceptId: "dimensional-analysis",
+    targetMisconceptionId: "DIM_CHAINED_DIRECTION",
+    promptText: `Convert ${a} ${u1} to ${u3} (1 ${u1.slice(0, -1)} = ${k1} ${u2}, 1 ${u2.slice(0, -1)} = ${k2} ${u3}).`,
+    answerType: "number",
+    correctAnswer: normalizeAnswer(String(correct), "number"),
+    distractorAnswer: normalizeAnswer(String(distractor), "number"),
+    meta: { a, k1, k2, difficulty: DIFFICULTY_META[difficulty] },
+  };
+};
+
+const dimWrongQuantity: Generator = (difficulty) => {
+  const rMax = pick(difficulty, 5, 8, 12);
+  const mMax = pick(difficulty, 8, 14, 20);
+  const r = randInt(2, rMax); // grams of solute per liter
+  const m = randInt(2, mMax);
+  const t = r * m; // total grams
+  const correct = m; // t / r, guaranteed clean by construction
+  const distractor = t * r;
+  return {
+    id: mkId("dimensional-analysis", "DIM_WRONG_QUANTITY"),
+    conceptId: "dimensional-analysis",
+    targetMisconceptionId: "DIM_WRONG_QUANTITY",
+    promptText: `A solution has a concentration of ${r} grams of solute per liter. How many liters contain ${t} grams of solute total?`,
+    answerType: "number",
+    correctAnswer: normalizeAnswer(String(correct), "number"),
+    distractorAnswer: normalizeAnswer(String(distractor), "number"),
+    meta: { r, t, difficulty: DIFFICULTY_META[difficulty] },
+  };
+};
+
+function moleRatioSetup(aMax: number, kMax: number): { a: number; b: number; c: number; k: number } {
+  let a: number, b: number;
+  do {
+    a = randInt(2, aMax);
+    b = randInt(2, aMax);
+  } while (a === b || a === b * b); // a===b collides correct with two distractors; a===b*b collides the "partial" one
+  const c = randInt(2, aMax);
+  const k = randInt(2, kMax);
+  return { a, b, c, k };
+}
+
+const moleRatioInverted: Generator = (difficulty) => {
+  const aMax = pick(difficulty, 4, 6, 9);
+  const kMax = pick(difficulty, 6, 9, 12);
+  const { a, b, c, k } = moleRatioSetup(aMax, kMax);
+  const n = a * k;
+  const correct = b * k;
+  const distractor = (a * a * k) / b;
+  return {
+    id: mkId("mole-ratios", "MOLE_RATIO_INVERTED"),
+    conceptId: "mole-ratios",
+    targetMisconceptionId: "MOLE_RATIO_INVERTED",
+    promptText: `In the reaction ${a}X + ${b}Y → ${c}Z, you have ${n} moles of X. How many moles of Y are needed to react completely?`,
+    answerType: "number",
+    correctAnswer: normalizeAnswer(String(correct), "number"),
+    distractorAnswer: normalizeAnswer(String(distractor), "number"),
+    meta: { a, b, c, k, difficulty: DIFFICULTY_META[difficulty] },
+  };
+};
+
+const moleRatioIgnored: Generator = (difficulty) => {
+  const aMax = pick(difficulty, 4, 6, 9);
+  const kMax = pick(difficulty, 6, 9, 12);
+  const { a, b, c, k } = moleRatioSetup(aMax, kMax);
+  const n = a * k;
+  const correct = b * k;
+  const distractor = n;
+  return {
+    id: mkId("mole-ratios", "MOLE_RATIO_IGNORED"),
+    conceptId: "mole-ratios",
+    targetMisconceptionId: "MOLE_RATIO_IGNORED",
+    promptText: `In the reaction ${a}X + ${b}Y → ${c}Z, you have ${n} moles of X. How many moles of Y are needed to react completely?`,
+    answerType: "number",
+    correctAnswer: normalizeAnswer(String(correct), "number"),
+    distractorAnswer: normalizeAnswer(String(distractor), "number"),
+    meta: { a, b, c, k, difficulty: DIFFICULTY_META[difficulty] },
+  };
+};
+
+const moleRatioPartial: Generator = (difficulty) => {
+  const aMax = pick(difficulty, 4, 6, 9);
+  const kMax = pick(difficulty, 6, 9, 12);
+  const { a, b, c, k } = moleRatioSetup(aMax, kMax);
+  const n = a * k;
+  const correct = b * k;
+  const distractor = n / b;
+  return {
+    id: mkId("mole-ratios", "MOLE_RATIO_PARTIAL"),
+    conceptId: "mole-ratios",
+    targetMisconceptionId: "MOLE_RATIO_PARTIAL",
+    promptText: `In the reaction ${a}X + ${b}Y → ${c}Z, you have ${n} moles of X. How many moles of Y are needed to react completely?`,
+    answerType: "number",
+    correctAnswer: normalizeAnswer(String(correct), "number"),
+    distractorAnswer: normalizeAnswer(String(distractor), "number"),
+    meta: { a, b, c, k, difficulty: DIFFICULTY_META[difficulty] },
+  };
+};
+
+// ---------------------------------------------------------------------------
 
 const GENERATORS_BY_CONCEPT: Record<ConceptId, Generator[]> = {
   "order-of-operations": [orderLeftToRight, orderAddBeforeMult, orderExponentLast],
@@ -384,6 +535,8 @@ const GENERATORS_BY_CONCEPT: Record<ConceptId, Generator[]> = {
   distributing: [distNoMultiplySecond, distAddInsteadMultiply, distSignError],
   "combining-like-terms": [cltAddUnlike, cltExponentAdd, cltDropVariable],
   "linear-equations": [eqWrongOperation, eqOneSideOnly, eqDividePartial],
+  "dimensional-analysis": [dimInvertedFactor, dimChainedDirection, dimWrongQuantity],
+  "mole-ratios": [moleRatioInverted, moleRatioIgnored, moleRatioPartial],
 };
 
 export const GENERATORS_BY_MISCONCEPTION: Record<string, Generator> = {
@@ -402,6 +555,12 @@ export const GENERATORS_BY_MISCONCEPTION: Record<string, Generator> = {
   EQ_WRONG_OPERATION: eqWrongOperation,
   EQ_ONE_SIDE_ONLY: eqOneSideOnly,
   EQ_DIVIDE_PARTIAL: eqDividePartial,
+  DIM_INVERTED_FACTOR: dimInvertedFactor,
+  DIM_CHAINED_DIRECTION: dimChainedDirection,
+  DIM_WRONG_QUANTITY: dimWrongQuantity,
+  MOLE_RATIO_INVERTED: moleRatioInverted,
+  MOLE_RATIO_IGNORED: moleRatioIgnored,
+  MOLE_RATIO_PARTIAL: moleRatioPartial,
 };
 
 /** Generates a random problem instance for the given concept, at the given

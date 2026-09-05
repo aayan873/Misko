@@ -6,7 +6,7 @@ import {
   AttemptRow,
   SpotMistakeAttemptRow,
 } from "./store";
-import { CONCEPTS, ConceptId, getConcept } from "./domain/concepts";
+import { CONCEPTS, ConceptId, Subject, conceptsForSubject, getConcept } from "./domain/concepts";
 import { getMisconception } from "./domain/misconceptions";
 import {
   Difficulty,
@@ -21,6 +21,10 @@ import { initialMastery, updateMastery, BKT_MASTERY_THRESHOLD } from "./bkt";
 export const MASTERY_MIN_ATTEMPTS = 3;
 /** Chance of serving a review problem from a weaker, previously-seen concept instead of the frontier concept (interleaving, see RESEARCH/LEARNING_SCIENCE.md #8). */
 const INTERLEAVE_PROBABILITY = 0.25;
+/** Every subject-scoped function below defaults to algebra when no subject is
+ *  given, so every pre-existing caller (routes, tests) keeps working exactly
+ *  as before without having to learn about subjects at all. */
+const DEFAULT_SUBJECT: Subject = "algebra";
 
 /**
  * Spaced review of already-mastered concepts, spaced by problems-answered-since
@@ -90,11 +94,20 @@ function learnerTotalAttempts(learnerId: string): number {
   return store.raw.attempts.filter((a) => a.learner_id === learnerId).length;
 }
 
-/** The single most-overdue mastered concept, if any — see decideNextProblem. */
-function dueForReview(learnerId: string): ConceptId | null {
+/** The single most-overdue mastered concept within this subject, if any — see
+ *  decideNextProblem. Subject-scoped so switching subjects doesn't surface a
+ *  review problem from the OTHER subject out of context. */
+function dueForReview(learnerId: string, subject: Subject): ConceptId | null {
   const total = learnerTotalAttempts(learnerId);
+  const subjectIds = new Set(conceptsForSubject(subject).map((c) => c.id));
   const due = getAllMastery(learnerId)
-    .filter((m) => m.mastered === 1 && m.due_after_attempts !== null && total >= m.due_after_attempts)
+    .filter(
+      (m) =>
+        subjectIds.has(m.concept_id) &&
+        m.mastered === 1 &&
+        m.due_after_attempts !== null &&
+        total >= m.due_after_attempts
+    )
     .sort((a, b) => (a.due_after_attempts as number) - (b.due_after_attempts as number));
   return due[0]?.concept_id ?? null;
 }
@@ -107,21 +120,32 @@ function isConceptMastered(learnerId: string, conceptId: ConceptId): boolean {
   return getConceptMastery(learnerId, conceptId).mastered === 1;
 }
 
-/** The concept the learner should currently be working toward, per the prerequisite chain. */
-export function frontierConcept(learnerId: string): ConceptId | null {
-  for (const concept of CONCEPTS) {
+/** The concept the learner should currently be working toward within this
+ *  subject, per that subject's own prerequisite chain. Subjects are
+ *  independent frontiers (see concepts.ts) — mastering all of algebra is
+ *  never a prerequisite for starting chemistry, or vice versa. */
+export function frontierConcept(learnerId: string, subject: Subject = DEFAULT_SUBJECT): ConceptId | null {
+  for (const concept of conceptsForSubject(subject)) {
     const prereqsMet = concept.prerequisites.every((p) => isConceptMastered(learnerId, p));
     if (prereqsMet && !isConceptMastered(learnerId, concept.id)) return concept.id;
   }
-  return null; // everything mastered
+  return null; // everything in this subject mastered
 }
 
-/** Most recent misconception this learner hit that hasn't yet been resolved by a correct answer. */
+/** Most recent misconception this learner hit that hasn't yet been resolved by
+ *  a correct answer. `subject` is optional and, when given, only considers
+ *  that subject's concepts — used by decideNextProblem so switching subjects
+ *  doesn't surface the OTHER subject's unresolved misconception out of
+ *  context. Left unfiltered (the default) for submit-answer's own use, which
+ *  doesn't need subject-scoping since misconception ids are already globally
+ *  unique across subjects — matching one already implies the same subject. */
 function activeMisconception(
-  learnerId: string
+  learnerId: string,
+  subject?: Subject
 ): { misconceptionId: string; conceptId: ConceptId } | null {
+  const subjectIds = subject ? new Set(conceptsForSubject(subject).map((c) => c.id)) : null;
   const events = store.raw.misconceptionEvents
-    .filter((e) => e.learner_id === learnerId && e.resolved === 0)
+    .filter((e) => e.learner_id === learnerId && e.resolved === 0 && (!subjectIds || subjectIds.has(e.concept_id)))
     // Sort by monotonic id, not created_at — two events can share a millisecond
     // timestamp (e.g. rapid consecutive requests), and Date.now() ties would make
     // "most recent" ambiguous. id is strictly increasing by insertion order.
@@ -133,13 +157,22 @@ function activeMisconception(
 /**
  * A correct answer whose reasoning raised a soft hypothesis (see
  * classifyCorrectReasoning) and is still awaiting its silent confirmation-round
- * problem. See "Catching the Correct Answer Trap" in ARCHITECTURE.md.
+ * problem. See "Catching the Correct Answer Trap" in ARCHITECTURE.md. `subject`
+ * is optional — see activeMisconception's doc comment for why it's only
+ * passed from decideNextProblem, not from submit-answer's own lookup.
  */
 export function pendingConfirmation(
-  learnerId: string
+  learnerId: string,
+  subject?: Subject
 ): { misconceptionId: string; conceptId: ConceptId; problemPrompt: string } | null {
+  const subjectIds = subject ? new Set(conceptsForSubject(subject).map((c) => c.id)) : null;
   const row = store.raw.attempts
-    .filter((a) => a.learner_id === learnerId && a.confirmation_status === "pending")
+    .filter(
+      (a) =>
+        a.learner_id === learnerId &&
+        a.confirmation_status === "pending" &&
+        (!subjectIds || subjectIds.has(a.concept_id))
+    )
     // id, not created_at — see activeMisconception's comment on timestamp ties.
     .sort((a, b) => b.id - a.id)[0];
   if (!row || !row.misconception_id) return null;
@@ -168,9 +201,10 @@ export function lastMisconceptionOnConcept(learnerId: string, conceptId: Concept
   return row.misconception_id;
 }
 
-function weakestReviewableConcept(learnerId: string, exclude: ConceptId): ConceptId | null {
+function weakestReviewableConcept(learnerId: string, exclude: ConceptId, subject: Subject): ConceptId | null {
+  const subjectIds = new Set(conceptsForSubject(subject).map((c) => c.id));
   const attempted = getAllMastery(learnerId).filter(
-    (m) => m.attempts > 0 && m.concept_id !== exclude
+    (m) => m.attempts > 0 && m.concept_id !== exclude && subjectIds.has(m.concept_id)
   );
   if (attempted.length === 0) return null;
   attempted.sort((a, b) => a.correct / Math.max(a.attempts, 1) - b.correct / Math.max(b.attempts, 1));
@@ -214,9 +248,12 @@ function difficultyForConcept(learnerId: string, conceptId: ConceptId): Difficul
  * The mastery gate: decides what the learner sees next. This is where the
  * "two learners can get different experiences" behavior (prompt.md §9) actually
  * happens — the decision depends entirely on this learner's stored history.
+ * `subject` defaults to algebra so every pre-existing caller keeps working
+ * unchanged; the practice UI's subject switcher is what actually passes
+ * "chemistry" through (see /api/next-problem).
  */
-export function decideNextProblem(learnerId: string): NextProblemResult {
-  const pending = pendingConfirmation(learnerId);
+export function decideNextProblem(learnerId: string, subject: Subject = DEFAULT_SUBJECT): NextProblemResult {
+  const pending = pendingConfirmation(learnerId, subject);
   if (pending) {
     return {
       done: false,
@@ -229,7 +266,7 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
     };
   }
 
-  const active = activeMisconception(learnerId);
+  const active = activeMisconception(learnerId, subject);
   if (active) {
     return {
       done: false,
@@ -245,7 +282,7 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
   // Checked before the "all mastered" exit below, on purpose — review is exactly
   // as relevant (more, arguably) once the curriculum is "done" as while still
   // working through it. See dueForReview / BASE_REVIEW_INTERVAL above.
-  const due = dueForReview(learnerId);
+  const due = dueForReview(learnerId, subject);
   if (due) {
     return {
       done: false,
@@ -255,13 +292,13 @@ export function decideNextProblem(learnerId: string): NextProblemResult {
     };
   }
 
-  const frontier = frontierConcept(learnerId);
+  const frontier = frontierConcept(learnerId, subject);
   if (!frontier) {
-    return { done: true, reason: "All concepts mastered.", reasonType: "done" };
+    return { done: true, reason: `All ${subject} concepts mastered.`, reasonType: "done" };
   }
 
   if (Math.random() < INTERLEAVE_PROBABILITY) {
-    const review = weakestReviewableConcept(learnerId, frontier);
+    const review = weakestReviewableConcept(learnerId, frontier, subject);
     if (review) {
       return {
         done: false,
