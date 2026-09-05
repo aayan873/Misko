@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ReasoningTraceProps {
   /** Each string is a step that ACTUALLY happened server-side, in order — this reveals
@@ -37,22 +38,25 @@ export default function ReasoningTrace({ steps, stepDelayMs = 480, onComplete }:
 
   return (
     <ul className="flex list-none flex-col gap-2.5 p-0">
-      {steps.map((step, i) => {
-        const isVisible = i < visibleCount;
-        const isActive = i === visibleCount;
-        if (!isVisible && !isActive) return null;
-        return (
-          <li
-            key={i}
-            className={`flex gap-2.5 text-[13.5px] transition-opacity duration-300 ${
-              isVisible ? "opacity-100" : "opacity-70"
-            }`}
-          >
-            <span className={`trace-mk ${isVisible ? "" : "pending"}`}>{isVisible ? "✓" : ""}</span>
-            <span className={isVisible ? "font-medium text-ink" : "text-ink-soft"}>{step}</span>
-          </li>
-        );
-      })}
+      <AnimatePresence initial={false}>
+        {steps.map((step, i) => {
+          const isVisible = i < visibleCount;
+          const isActive = i === visibleCount;
+          if (!isVisible && !isActive) return null;
+          return (
+            <motion.li
+              key={i}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: isVisible ? 1 : 0.7, x: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="flex gap-2.5 text-[13.5px]"
+            >
+              <span className={`trace-mk ${isVisible ? "" : "pending"}`}>{isVisible ? "✓" : ""}</span>
+              <span className={isVisible ? "font-medium text-ink" : "text-ink-soft"}>{step}</span>
+            </motion.li>
+          );
+        })}
+      </AnimatePresence>
     </ul>
   );
 }

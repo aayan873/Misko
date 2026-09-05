@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import confetti from "canvas-confetti";
+
 interface MasteredStampProps {
   conceptName: string;
 }
@@ -7,8 +12,27 @@ interface MasteredStampProps {
  * crosses the threshold (see practice/page.tsx's justMastered check). Reuses the
  * same rotated grading-stamp look as a mastered node in ConceptPath, just bigger
  * and animated in — the mastery gate's whole point made into one visible beat.
+ *
+ * prompt_v2.md B3: one tasteful canvas-confetti burst, used nowhere else in the
+ * app — reserved for this specific moment so it stays meaningful instead of
+ * becoming background noise.
  */
 export default function MasteredStamp({ conceptName }: MasteredStampProps) {
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    confetti({
+      particleCount: 60,
+      spread: 65,
+      startVelocity: 32,
+      origin: { y: 0.35 },
+      colors: ["#10b981", "#f59e0b", "#3b82f6"],
+      disableForReducedMotion: true,
+    });
+  }, []);
+
   return (
     <div className="mb-5 flex justify-center">
       <div
