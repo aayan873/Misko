@@ -8,6 +8,7 @@ import MisconceptionRadar from "@/components/MisconceptionRadar";
 import MisconceptionMap from "@/components/MisconceptionMap";
 import ExportImport from "@/components/ExportImport";
 import SessionSummary from "@/components/SessionSummary";
+import ReportCard from "@/components/ReportCard";
 
 const SHORT_CONCEPT_LABEL: Record<string, string> = {
   "order-of-operations": "Order of Ops",
@@ -339,6 +340,24 @@ export default function DashboardPage() {
             })}
           </div>
         )}
+      </section>
+
+      <section className="mt-10 mb-10">
+        <h2 className="section-title">Your report card</h2>
+        <p className="mt-2.5 mb-6 max-w-[56ch] text-[15px] leading-relaxed text-ink-soft">
+          A shareable snapshot of real progress — the same numbers as the rest of this page,
+          built into an image you can actually keep.
+        </p>
+        <div className="card p-7">
+          <ReportCard
+            masteredConcepts={state.mastery.filter((m) => m.mastered).map((m) => m.name)}
+            totalConcepts={state.mastery.length}
+            misconceptionsResolved={state.misconceptionHistory.filter((h) => h.resolved).length}
+            misconceptionsSeen={state.misconceptionHistory.length}
+            confirmed={state.confirmationStats.confirmed}
+            caught={state.confirmationStats.caught}
+          />
+        </div>
       </section>
     </div>
   );
