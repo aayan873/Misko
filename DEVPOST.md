@@ -68,6 +68,23 @@ plus a rule-based version of the reasoning-suspicion trigger) keeps the core
 mechanic functioning without any API call, which was a deliberate design
 choice, not an afterthought bolted on for robustness points.
 
+There's a second, genuinely different ML technique in the product too, not
+just the same LLM call reused: every misconception's description is embedded
+once and laid out in 2D by cosine similarity (a hand-rolled stress-style
+layout, not a graph library), rendered on `/dashboard` so a learner can see
+their own mistake history cluster by conceptual similarity — computed
+entirely offline, with zero live API dependency for anyone viewing it.
+
+Khan Academy's Khanmigo shipped its own misconception-path detection this
+year, and there's a growing academic literature on the same problem (arXiv
+2606.21502; arXiv 2406.19356, DiVERT) — which we read as validation that the
+underlying problem is real, not as something that undercuts this project.
+What still isn't common, even against that backdrop: refusing to act on a
+single AI judgment (the confirmation-round mechanic below), the same engine
+generalizing across subjects with no changes to the diagnosis/mastery/AI code
+(see "What we built" above), and using more than one distinct ML technique
+rather than one LLM call doing everything.
+
 ## Educational impact
 
 The confirmation-round mechanic directly targets a documented, real gap in

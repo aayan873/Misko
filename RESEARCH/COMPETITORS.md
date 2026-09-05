@@ -7,10 +7,11 @@ around. Numbered because a few code comments reference specific items directly
 1. **Khanmigo, Quizlet's Q-Chat, and plain ChatGPT-wrapper tutors** are the direct
    competitive set for an AI math tutor. All of them are fundamentally
    chat-first: a student converses with a model that responds in natural
-   language. None of them ship a fixed, inspectable taxonomy of wrong-reasoning
-   patterns tied to distractor answers — correctness checking and hint quality
-   both ride on the model's judgment call in the moment, which is fluent but not
-   inspectable or testable the way a matched-distractor lookup is.
+   language. Correctness checking and hint quality both ride on the model's
+   judgment call in the moment, which is fluent but not inspectable or testable
+   the way a matched-distractor lookup is. (See #10 — this used to say none of
+   them detect misconceptions at all; that specific claim didn't age well and
+   has been corrected.)
 2. **Streak-based mastery gates** (Khan Academy's exercise mode is the most
    visible example: get N in a row right and the skill is marked done) treat one
    wrong answer as equivalent to zero progress. This is the direct reason
@@ -61,3 +62,23 @@ around. Numbered because a few code comments reference specific items directly
    across two personas (student and teacher) diluted the one it was actually
    built around. The gap is real and worth naming as a research finding, but
    chasing it here would have cost more in focus than it gained in coverage.
+10. **The field moved during this project**: Khan Academy's Khanmigo shipped its
+    own misconception-path detection this year, and academic work on the same
+    problem has kept coming (arXiv 2606.21502; arXiv 2406.19356, DiVERT). That's
+    good news, not a threat — a competitor and a growing research literature
+    both independently converging on "detecting *why* an answer is wrong
+    matters" is evidence the problem is real, not evidence Misko has nothing
+    left to say. What Misko still doesn't share with a shipped misconception
+    detector: (a) it never acts on a single AI judgment — a correct answer with
+    shaky-looking reasoning gets an independent, deterministically-graded
+    second problem before anything is flagged (the confirmation-round
+    mechanic, item #4); (b) the same engine, taxonomy shape, and AI layer
+    generalize to a second subject (chemistry, see A0 in
+    RESEARCH/IDEA_SELECTION.md) with no changes to the diagnosis/mastery/AI
+    code, a real test of whether the architecture is genuinely subject-agnostic
+    or just happened to fit algebra; (c) the diagnostic pipeline itself uses
+    more than one LLM call dressed up differently — a deterministic rule-based
+    match first, then an LLM classification, then a local TF-IDF fallback with
+    no key at all, plus a genuinely separate ML technique (text embeddings + a
+    2D similarity layout on `/dashboard`, not prompting) for visualizing how a
+    learner's mistakes relate to each other.
