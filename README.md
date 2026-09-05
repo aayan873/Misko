@@ -15,9 +15,7 @@ persistent process to work, so nothing you do actually gets saved there — mast
 tracking, misconception history, and the confirmation mechanic below won't do anything
 on this deployment. Run it locally (see Setup) for the real thing.
 
-This README describes what's on this branch, which is ahead of what's actually deployed
-and ahead of `main` — several sections below (spaced review, export/import, Spot the
-Mistake) aren't live at the link above yet.
+![Misko homepage](screenshots/00-home.png)
 
 ## The problem
 
@@ -28,6 +26,8 @@ if it is, they move on. Recent research calls this the "Correct Answer Trap": ev
 sophisticated AI tutors miss flawed reasoning hiding behind a right number.
 
 ## What it does
+
+![The Caught moment — a confirmation-round problem revealing an earlier correct answer didn't hold up](screenshots/01-caught-moment.png)
 
 - **Catches lucky guesses.** If a correct answer's reasoning looks shaky, Misko quietly
   gives you a follow-up problem of the same type. Get it wrong too, and it tells you the

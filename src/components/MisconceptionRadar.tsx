@@ -7,7 +7,15 @@ interface MisconceptionRadarProps {
   axes: RadarAxis[];
 }
 
-const SIZE = 280;
+// SIZE has real margin beyond MAX_RADIUS + the label offset below — a real,
+// live-browser-caught bug (never visible in this project before actual
+// screenshots existed): at the old SIZE (280), the two axes nearest
+// horizontal (Negatives, Distributing on the right / Equations on the left)
+// placed their label's anchor point close enough to the SVG edge that
+// "Distributing"/"Equations"-length labels clipped, since SVG clips content
+// outside its viewBox by default. The chart's actual plotted radius
+// (MAX_RADIUS) is unchanged — only the canvas around it grew.
+const SIZE = 340;
 const CENTER = SIZE / 2;
 const MAX_RADIUS = 96;
 const RINGS = 4;
